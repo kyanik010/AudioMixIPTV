@@ -1,5 +1,6 @@
 package com.audiomix.iptv
 
+import android.app.Dialog
 import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
@@ -64,10 +65,6 @@ class MainActivity : AppCompatActivity() {
         executor.shutdownNow()
         super.onDestroy()
     }
-
-    // ---------------------------------------------------------
-    // LOGIN
-    // ---------------------------------------------------------
 
     private fun showLoginScreen() {
 
@@ -164,7 +161,8 @@ class MainActivity : AppCompatActivity() {
             val userText = username.text.toString().trim()
             val passText = password.text.toString()
 
-            if (serverText.isEmpty() ||
+            if (
+                serverText.isEmpty() ||
                 userText.isEmpty() ||
                 passText.isEmpty()
             ) {
@@ -189,7 +187,8 @@ class MainActivity : AppCompatActivity() {
                         passText
                     )
 
-                    val result = XtreamApi.getLiveChannels(creds)
+                    val result =
+                        XtreamApi.getLiveChannels(creds)
 
                     runOnUiThread {
 
@@ -232,10 +231,6 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(root)
     }
-
-    // ---------------------------------------------------------
-    // CHANNEL SCREEN
-    // ---------------------------------------------------------
 
     private fun showChannelScreen() {
 
@@ -392,21 +387,20 @@ class MainActivity : AppCompatActivity() {
         """.trimIndent()
     }
 
-    // ---------------------------------------------------------
-    // CHANNEL PICKER
-    // ---------------------------------------------------------
-
     private fun showChannelPicker(
         titleText: String,
         onSelected: (Channel) -> Unit
     ) {
 
-        val dialog = DialogHelper.createDialog(this)
+        val dialog =
+            DialogHelper.createDialog(this)
 
         val container = LinearLayout(this)
         container.orientation = LinearLayout.VERTICAL
         container.setPadding(25, 25, 25, 25)
-        container.setBackgroundColor(Color.rgb(25, 25, 25))
+        container.setBackgroundColor(
+            Color.rgb(25, 25, 25)
+        )
 
         val title = TextView(this)
         title.text = titleText
@@ -437,38 +431,43 @@ class MainActivity : AppCompatActivity() {
 
         fun updateList(query: String) {
 
-            val filtered = if (query.isBlank()) {
-
-                channels
-
-            } else {
-
-                channels.filter {
-                    it.name.contains(
-                        query,
-                        ignoreCase = true
-                    )
+            val filtered =
+                if (query.isBlank()) {
+                    channels
+                } else {
+                    channels.filter {
+                        it.name.contains(
+                            query,
+                            ignoreCase = true
+                        )
+                    }
                 }
-            }
 
-            val names = filtered.map {
-                it.name
-            }
+            val names =
+                filtered.map {
+                    it.name
+                }
 
-            list.adapter = ArrayAdapter(
-                this,
-                android.R.layout.simple_list_item_1,
-                names
-            )
+            list.adapter =
+                ArrayAdapter(
+                    this,
+                    android.R.layout.simple_list_item_1,
+                    names
+                )
 
-            list.setOnItemClickListener { _, _, position, _ ->
+            list.setOnItemClickListener {
+                    _,
+                    _,
+                    position,
+                    _ ->
 
-                val selected = filtered[position]
+                    val selected =
+                        filtered[position]
 
-                onSelected(selected)
+                    onSelected(selected)
 
-                dialog.dismiss()
-            }
+                    dialog.dismiss()
+                }
         }
 
         search.addTextChangedListener(
@@ -488,7 +487,9 @@ class MainActivity : AppCompatActivity() {
                     before: Int,
                     count: Int
                 ) {
-                    updateList(s?.toString() ?: "")
+                    updateList(
+                        s?.toString() ?: ""
+                    )
                 }
 
                 override fun afterTextChanged(
@@ -502,53 +503,47 @@ class MainActivity : AppCompatActivity() {
 
         dialog.setContentView(container)
 
+        dialog.show()
+
         val window = dialog.window
 
         window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.90).toInt(),
-            (resources.displayMetrics.heightPixels * 0.85).toInt()
-        )
-
-        dialog.show()
-
-        window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.90).toInt(),
-            (resources.displayMetrics.heightPixels * 0.85).toInt()
+            (resources.displayMetrics.widthPixels * 0.90)
+                .toInt(),
+            (resources.displayMetrics.heightPixels * 0.85)
+                .toInt()
         )
     }
 
-    // ---------------------------------------------------------
-    // START DUAL PLAYBACK
-    // ---------------------------------------------------------
-
     private fun startDualPlayback() {
 
-        val video = selectedVideo ?: return
-        val audio = selectedAudio ?: return
+        val video =
+            selectedVideo ?: return
+
+        val audio =
+            selectedAudio ?: return
 
         dualPlayer?.release()
 
-        dualPlayer = DualStreamPlayer(
-            this,
-            video.streamUrl,
-            audio.streamUrl
-        )
+        dualPlayer =
+            DualStreamPlayer(
+                this,
+                video.streamUrl,
+                audio.streamUrl
+            )
 
         showPlayerScreen()
 
         dualPlayer?.play()
     }
 
-    // ---------------------------------------------------------
-    // PLAYER SCREEN
-    // ---------------------------------------------------------
-
     private fun showPlayerScreen() {
 
         root = FrameLayout(this)
         root.setBackgroundColor(Color.BLACK)
 
-        val videoView = PlayerView(this)
+        val videoView =
+            PlayerView(this)
 
         videoView.useController = true
         videoView.setBackgroundColor(Color.BLACK)
@@ -561,30 +556,77 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
-        val controls = LinearLayout(this)
-        controls.orientation = LinearLayout.HORIZONTAL
-        controls.gravity = Gravity.CENTER
-        controls.setPadding(10, 10, 10, 10)
-        controls.setBackgroundColor(Color.argb(190, 0, 0, 0))
+        val controls =
+            LinearLayout(this)
 
-        val delayMinus = Button(this)
-        delayMinus.text = "-0.5s"
+        controls.orientation =
+            LinearLayout.HORIZONTAL
 
-        val delayText = TextView(this)
-        delayText.text = "0.0s"
-        delayText.textSize = 18f
-        delayText.setTextColor(Color.WHITE)
-        delayText.gravity = Gravity.CENTER
-        delayText.setPadding(25, 0, 25, 0)
+        controls.gravity =
+            Gravity.CENTER
 
-        val delayPlus = Button(this)
-        delayPlus.text = "+0.5s"
+        controls.setPadding(
+            10,
+            10,
+            10,
+            10
+        )
 
-        val syncButton = Button(this)
-        syncButton.text = "مزامنة تلقائية"
+        controls.setBackgroundColor(
+            Color.argb(
+                190,
+                0,
+                0,
+                0
+            )
+        )
 
-        val backButton = Button(this)
-        backButton.text = "رجوع"
+        val delayMinus =
+            Button(this)
+
+        delayMinus.text =
+            "-0.5s"
+
+        val delayText =
+            TextView(this)
+
+        delayText.text =
+            "0.0s"
+
+        delayText.textSize =
+            18f
+
+        delayText.setTextColor(
+            Color.WHITE
+        )
+
+        delayText.gravity =
+            Gravity.CENTER
+
+        delayText.setPadding(
+            25,
+            0,
+            25,
+            0
+        )
+
+        val delayPlus =
+            Button(this)
+
+        delayPlus.text =
+            "+0.5s"
+
+        val syncButton =
+            Button(this)
+
+        syncButton.text =
+            "مزامنة تلقائية"
+
+        val backButton =
+            Button(this)
+
+        backButton.text =
+            "رجوع"
 
         controls.addView(delayMinus)
         controls.addView(delayText)
@@ -592,12 +634,14 @@ class MainActivity : AppCompatActivity() {
         controls.addView(syncButton)
         controls.addView(backButton)
 
-        val controlsParams = FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
+        val controlsParams =
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
 
-        controlsParams.gravity = Gravity.BOTTOM
+        controlsParams.gravity =
+            Gravity.BOTTOM
 
         root.addView(
             controls,
@@ -606,18 +650,24 @@ class MainActivity : AppCompatActivity() {
 
         delayMinus.setOnClickListener {
 
-            dualPlayer?.changeDelay(-500)
+            dualPlayer?.changeDelay(
+                -500
+            )
 
             delayText.text =
-                dualPlayer?.getDelayText() ?: "0.0s"
+                dualPlayer?.getDelayText()
+                    ?: "0.0s"
         }
 
         delayPlus.setOnClickListener {
 
-            dualPlayer?.changeDelay(500)
+            dualPlayer?.changeDelay(
+                500
+            )
 
             delayText.text =
-                dualPlayer?.getDelayText() ?: "0.0s"
+                dualPlayer?.getDelayText()
+                    ?: "0.0s"
         }
 
         syncButton.setOnClickListener {
@@ -634,6 +684,7 @@ class MainActivity : AppCompatActivity() {
         backButton.setOnClickListener {
 
             dualPlayer?.release()
+
             dualPlayer = null
 
             showChannelScreen()
@@ -641,33 +692,33 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(root)
 
-        dualPlayer?.attachVideoView(videoView)
+        dualPlayer?.attachVideoView(
+            videoView
+        )
 
         delayText.text =
-            dualPlayer?.getDelayText() ?: "0.0s"
+            dualPlayer?.getDelayText()
+                ?: "0.0s"
     }
 
-    // ---------------------------------------------------------
-    // HELPERS
-    // ---------------------------------------------------------
+    private fun normalizeServer(
+        server: String
+    ): String {
 
-    private fun normalizeServer(server: String): String {
+        var value =
+            server.trim()
 
-        var value = server.trim()
-
-        if (!value.startsWith("http://") &&
+        if (
+            !value.startsWith("http://") &&
             !value.startsWith("https://")
         ) {
-            value = "http://$value"
+            value =
+                "http://$value"
         }
 
         return value.trimEnd('/')
     }
 }
-
-// =============================================================
-// XTREAM API
-// =============================================================
 
 object XtreamApi {
 
@@ -676,10 +727,16 @@ object XtreamApi {
     ): List<Channel> {
 
         val encodedUser =
-            URLEncoder.encode(credentials.username, "UTF-8")
+            URLEncoder.encode(
+                credentials.username,
+                "UTF-8"
+            )
 
         val encodedPassword =
-            URLEncoder.encode(credentials.password, "UTF-8")
+            URLEncoder.encode(
+                credentials.password,
+                "UTF-8"
+            )
 
         val apiUrl =
             "${credentials.server}/player_api.php" +
@@ -687,33 +744,51 @@ object XtreamApi {
                     "&password=$encodedPassword" +
                     "&action=get_live_streams"
 
-        val json = request(apiUrl)
+        val json =
+            request(apiUrl)
 
-        val array = JSONArray(json)
+        val array =
+            JSONArray(json)
 
-        val result = ArrayList<Channel>()
+        val result =
+            ArrayList<Channel>()
 
         for (i in 0 until array.length()) {
 
-            val item = array.getJSONObject(i)
+            val item =
+                array.getJSONObject(i)
 
             val id =
-                item.optString("stream_id")
+                item.optString(
+                    "stream_id"
+                )
 
             val name =
-                item.optString("name")
+                item.optString(
+                    "name"
+                )
 
-            if (id.isBlank() || name.isBlank()) {
+            if (
+                id.isBlank() ||
+                name.isBlank()
+            ) {
                 continue
             }
 
             val direct =
-                item.optString("stream_url")
+                item.optString(
+                    "stream_url"
+                )
 
-            val candidates = ArrayList<String>()
+            val candidates =
+                ArrayList<String>()
 
-            if (direct.isNotBlank()) {
-                candidates.add(direct)
+            if (
+                direct.isNotBlank()
+            ) {
+                candidates.add(
+                    direct
+                )
             }
 
             candidates.add(
@@ -734,7 +809,8 @@ object XtreamApi {
                 Channel(
                     id = id,
                     name = name,
-                    streamUrl = candidates.first()
+                    streamUrl =
+                        candidates.first()
                 )
             )
         }
@@ -742,15 +818,24 @@ object XtreamApi {
         return result
     }
 
-    private fun request(urlString: String): String {
+    private fun request(
+        urlString: String
+    ): String {
 
         val connection =
-            URL(urlString).openConnection()
+            URL(urlString)
+                .openConnection()
                     as HttpURLConnection
 
-        connection.requestMethod = "GET"
-        connection.connectTimeout = 15000
-        connection.readTimeout = 20000
+        connection.requestMethod =
+            "GET"
+
+        connection.connectTimeout =
+            15000
+
+        connection.readTimeout =
+            20000
+
         connection.setRequestProperty(
             "User-Agent",
             "AudioMix IPTV"
@@ -761,7 +846,9 @@ object XtreamApi {
             val responseCode =
                 connection.responseCode
 
-            if (responseCode !in 200..299) {
+            if (
+                responseCode !in 200..299
+            ) {
                 throw Exception(
                     "HTTP $responseCode"
                 )
@@ -769,7 +856,9 @@ object XtreamApi {
 
             return connection.inputStream
                 .bufferedReader()
-                .use { it.readText() }
+                .use {
+                    it.readText()
+                }
 
         } finally {
 
@@ -777,10 +866,6 @@ object XtreamApi {
         }
     }
 }
-
-// =============================================================
-// DUAL STREAM PLAYER
-// =============================================================
 
 class DualStreamPlayer(
     private val context: Context,
@@ -791,12 +876,16 @@ class DualStreamPlayer(
     private val videoPlayer: ExoPlayer
     private val audioPlayer: ExoPlayer
 
-    private var manualDelayMs = 0L
+    private var manualDelayMs =
+        0L
 
     private val handler =
-        Handler(Looper.getMainLooper())
+        Handler(
+            Looper.getMainLooper()
+        )
 
-    private var released = false
+    private var released =
+        false
 
     private val syncRunnable =
         object : Runnable {
@@ -818,12 +907,14 @@ class DualStreamPlayer(
     init {
 
         videoPlayer =
-            ExoPlayer.Builder(context)
-                .build()
+            ExoPlayer.Builder(
+                context
+            ).build()
 
         audioPlayer =
-            ExoPlayer.Builder(context)
-                .build()
+            ExoPlayer.Builder(
+                context
+            ).build()
 
         configurePlayers()
     }
@@ -831,7 +922,8 @@ class DualStreamPlayer(
     private fun configurePlayers() {
 
         val videoParameters =
-            videoPlayer.trackSelectionParameters
+            videoPlayer
+                .trackSelectionParameters
                 .buildUpon()
                 .setTrackTypeDisabled(
                     C.TRACK_TYPE_AUDIO,
@@ -843,7 +935,8 @@ class DualStreamPlayer(
             videoParameters
 
         val audioParameters =
-            audioPlayer.trackSelectionParameters
+            audioPlayer
+                .trackSelectionParameters
                 .buildUpon()
                 .setTrackTypeDisabled(
                     C.TRACK_TYPE_VIDEO,
@@ -855,7 +948,8 @@ class DualStreamPlayer(
             audioParameters
 
         videoPlayer.setAudioAttributes(
-            androidx.media3.common.AudioAttributes.Builder()
+            androidx.media3.common.AudioAttributes
+                .Builder()
                 .setContentType(
                     C.AUDIO_CONTENT_TYPE_MOVIE
                 )
@@ -867,7 +961,8 @@ class DualStreamPlayer(
         )
 
         audioPlayer.setAudioAttributes(
-            androidx.media3.common.AudioAttributes.Builder()
+            androidx.media3.common.AudioAttributes
+                .Builder()
                 .setContentType(
                     C.AUDIO_CONTENT_TYPE_MUSIC
                 )
@@ -879,18 +974,25 @@ class DualStreamPlayer(
         )
 
         videoPlayer.setMediaItem(
-            createMediaItem(videoUrl)
+            createMediaItem(
+                videoUrl
+            )
         )
 
         audioPlayer.setMediaItem(
-            createMediaItem(audioUrl)
+            createMediaItem(
+                audioUrl
+            )
         )
 
         videoPlayer.prepare()
         audioPlayer.prepare()
 
-        videoPlayer.playWhenReady = true
-        audioPlayer.playWhenReady = true
+        videoPlayer.playWhenReady =
+            true
+
+        audioPlayer.playWhenReady =
+            true
     }
 
     private fun createMediaItem(
@@ -931,7 +1033,8 @@ class DualStreamPlayer(
         playerView: PlayerView
     ) {
 
-        playerView.player = videoPlayer
+        playerView.player =
+            videoPlayer
     }
 
     fun play() {
@@ -939,7 +1042,9 @@ class DualStreamPlayer(
         videoPlayer.play()
         audioPlayer.play()
 
-        handler.post(syncRunnable)
+        handler.post(
+            syncRunnable
+        )
     }
 
     fun changeDelay(
@@ -947,11 +1052,13 @@ class DualStreamPlayer(
     ) {
 
         manualDelayMs =
-            (manualDelayMs + amountMs)
-                .coerceIn(
-                    -10_000L,
-                    10_000L
-                )
+            (
+                manualDelayMs +
+                        amountMs
+            ).coerceIn(
+                -10_000L,
+                10_000L
+            )
 
         synchronize()
     }
@@ -969,7 +1076,9 @@ class DualStreamPlayer(
 
     fun forceSync() {
 
-        synchronize(force = true)
+        synchronize(
+            force = true
+        )
     }
 
     private fun synchronize(
@@ -984,15 +1093,18 @@ class DualStreamPlayer(
         val audioOffset =
             audioPlayer.currentLiveOffset
 
-        if (videoOffset != C.TIME_UNSET &&
+        if (
+            videoOffset != C.TIME_UNSET &&
             audioOffset != C.TIME_UNSET
         ) {
 
             val desiredAudioOffset =
-                videoOffset + manualDelayMs
+                videoOffset +
+                        manualDelayMs
 
             val difference =
-                audioOffset - desiredAudioOffset
+                audioOffset -
+                        desiredAudioOffset
 
             correctAudio(
                 difference,
@@ -1027,7 +1139,8 @@ class DualStreamPlayer(
         val absolute =
             abs(difference)
 
-        if (force ||
+        if (
+            force ||
             absolute > 1500L
         ) {
 
@@ -1035,7 +1148,9 @@ class DualStreamPlayer(
                 audioPlayer.currentPosition -
                         difference
 
-            if (target >= 0) {
+            if (
+                target >= 0
+            ) {
 
                 audioPlayer.seekTo(
                     target
@@ -1043,26 +1158,36 @@ class DualStreamPlayer(
             }
 
             audioPlayer.setPlaybackParameters(
-                PlaybackParameters(1f)
+                PlaybackParameters(
+                    1f
+                )
             )
 
-        } else if (absolute > 250L) {
+        } else if (
+            absolute > 250L
+        ) {
 
             val speed =
-                if (difference > 0) {
+                if (
+                    difference > 0
+                ) {
                     0.98f
                 } else {
                     1.02f
                 }
 
             audioPlayer.setPlaybackParameters(
-                PlaybackParameters(speed)
+                PlaybackParameters(
+                    speed
+                )
             )
 
         } else {
 
             audioPlayer.setPlaybackParameters(
-                PlaybackParameters(1f)
+                PlaybackParameters(
+                    1f
+                )
             )
         }
     }
@@ -1073,7 +1198,9 @@ class DualStreamPlayer(
 
         released = true
 
-        handler.removeCallbacksAndMessages(null)
+        handler.removeCallbacksAndMessages(
+            null
+        )
 
         videoPlayer.stop()
         audioPlayer.stop()
@@ -1082,10 +1209,6 @@ class DualStreamPlayer(
         audioPlayer.release()
     }
 }
-
-// =============================================================
-// SIMPLE DIALOG HELPER
-// =============================================================
 
 object DialogHelper {
 
@@ -1096,9 +1219,10 @@ object DialogHelper {
         val dialog =
             Dialog(context)
 
-        dialog.window?.setBackgroundDrawableResource(
-            android.R.color.transparent
-        )
+        dialog.window
+            ?.setBackgroundDrawableResource(
+                android.R.color.transparent
+            )
 
         return dialog
     }
