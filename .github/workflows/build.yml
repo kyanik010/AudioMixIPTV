@@ -23,18 +23,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK 36
+      - name: Configure Android SDK
         run: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          export ANDROID_HOME=$ANDROID_SDK_ROOT
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Install Gradle 9.6.0
         run: |
           wget -q https://services.gradle.org/distributions/gradle-9.6.0-bin.zip
           unzip -q gradle-9.6.0-bin.zip
           echo "$PWD/gradle-9.6.0/bin" >> "$GITHUB_PATH"
+
+      - name: Check Gradle
+        run: |
+          gradle --version
 
       - name: Build Debug APK
         run: |
