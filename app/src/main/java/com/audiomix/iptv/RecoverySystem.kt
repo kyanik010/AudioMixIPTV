@@ -14,12 +14,18 @@ class RecoverySystem {
         private const val MAX_RETRIES = 4
     }
 
-    fun retry(key: String, action: () -> Unit) {
-        if (released) return
+    fun retry(
+        key: String,
+        generation: Long = 0L,
+        isGenerationValid: () -> Boolean = { true },
+        action: () -> Unit
+    ) {
+        if (released || !isGenerationValid()) return
+
         val attempt = (attempts[key] ?: 0) + 1
         attempts[key] = attempt
         if (attempt > MAX_RETRIES) {
-            Log.w(TAG, "Retry limit reached for " + key)
+            Log.w(TAG, "Retry limit reached for $key generation=$generation")
             return
         }
 
@@ -30,14 +36,24 @@ class RecoverySystem {
             else -> 4_000L
         }
 
-        Log.w(TAG, "Recovery " + key + " attempt=" + attempt + " delay=" + delay)
+        Log.w(TAG, "Recovery $key generation=$generation attempt=$attempt delay=$delay")
         handler.postDelayed({
-            if (!released) action()
+            if (!released && isGenerationValid()) {
+                action()
+            } else {
+                Log.d(TAG, "Ignored stale recovery key=$key generation=$generation")
+            }
         }, delay)
     }
 
     fun reset(key: String) {
         attempts.remove(key)
+    }
+
+    fun resetAllFor(keyPrefix: String) {
+        attempts.keys.filter { it == keyPrefix || it.startsWith("$keyPrefix-") }
+            .toList()
+            .forEach { attempts.remove(it) }
     }
 
     fun release() {
