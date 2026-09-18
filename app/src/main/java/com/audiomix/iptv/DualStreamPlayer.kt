@@ -153,8 +153,10 @@ class DualStreamPlayer(
                 TAG,
                 "TRANSFER videoKbps=" + videoTransfer.windowKbps +
                     " videoTotalBytes=" + videoTransfer.totalBytes +
+                    " videoActive=" + videoTransfer.activeTransfers +
                     " audioKbps=" + audioTransfer.windowKbps +
                     " audioTotalBytes=" + audioTransfer.totalBytes +
+                    " audioActive=" + audioTransfer.activeTransfers +
                     " videoBufferMs=" + videoAheadMs +
                     " audioBufferMs=" + audioAheadMs
             )
