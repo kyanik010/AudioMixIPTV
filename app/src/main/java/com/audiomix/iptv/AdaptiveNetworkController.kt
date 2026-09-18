@@ -1,13 +1,19 @@
 package com.audiomix.iptv
 
 import android.util.Log
+import androidx.media3.common.C
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import kotlin.math.max
 
-class AdaptiveNetworkController(
-    private val bandwidthMeter: DefaultBandwidthMeter
-) {
+/**
+ * Decides whether a destructive recovery is safe during live playback.
+ *
+ * Recovery is deliberately conservative: Media3 should be allowed to drain
+ * existing buffer and recover naturally. A prepare() while useful video data
+ * remains buffered can throw away the very buffer protecting playback.
+ */
+class AdaptiveNetworkController {
+
     companion object {
         private const val TAG = "AudioMix-Adaptive"
         private const val SAFETY_FACTOR = 1.15
@@ -22,50 +28,77 @@ class AdaptiveNetworkController(
         val reason: String
     )
 
-    fun evaluate(player: Player, isVideo: Boolean, bufferAheadMs: Long): Decision {
-        val bitrateKbps = if (isVideo) {
-            player.currentTracks.groups
-                .asSequence()
-                .filter { it.type == androidx.media3.common.C.TRACK_TYPE_VIDEO && it.isSelected }
-                .mapNotNull { group ->
-                    (0 until group.length)
-                        .asSequence()
-                        .filter { group.isTrackSelected(it) }
-                        .mapNotNull { group.getTrackFormat(it).bitrate.takeIf { b -> b > 0 } }
-                        .firstOrNull()
-                }
-                .firstOrNull()
-                ?.div(1000L) ?: UNKNOWN
-        } else {
-            player.currentTracks.groups
-                .asSequence()
-                .filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO && it.isSelected }
-                .mapNotNull { group ->
-                    (0 until group.length)
-                        .asSequence()
-                        .filter { group.isTrackSelected(it) }
-                        .mapNotNull { group.getTrackFormat(it).bitrate.takeIf { b -> b > 0 } }
-                        .firstOrNull()
-                }
-                .firstOrNull()
-                ?.div(1000L) ?: UNKNOWN
-        }
-        val throughputKbps = bandwidthMeter.bitrateEstimate
+    fun evaluate(
+        player: Player,
+        isVideo: Boolean,
+        bufferAheadMs: Long,
+        network: NetworkMetrics.Snapshot
+    ): Decision {
+        val trackType = if (isVideo) C.TRACK_TYPE_VIDEO else C.TRACK_TYPE_AUDIO
+        val bitrateKbps = player.currentTracks.groups
+            .asSequence()
+            .filter { it.type == trackType && it.isSelected }
+            .flatMap { group ->
+                (0 until group.length)
+                    .asSequence()
+                    .filter { group.isTrackSelected(it) }
+                    .mapNotNull { group.getTrackFormat(it).bitrate.takeIf { b -> b > 0 } }
+            }
+            .firstOrNull()
+            ?.div(1000L)
+            ?: UNKNOWN
+
+        val throughputKbps = network.averageThroughputKbps
             .takeIf { it > 0L }
-            ?.div(1000L) ?: UNKNOWN
+            ?: network.lastThroughputKbps.takeIf { it > 0L }
+            ?: UNKNOWN
+
+        if (bufferAheadMs > 0L) {
+            if (bitrateKbps != UNKNOWN && throughputKbps != UNKNOWN) {
+                val requiredKbps = max(1L, (bitrateKbps * SAFETY_FACTOR).toLong())
+                if (throughputKbps < requiredKbps) {
+                    Log.w(
+                        TAG,
+                        "network underspeed type=" + (if (isVideo) "VIDEO" else "AUDIO") +
+                            " throughput=" + throughputKbps + "kbps format=" + bitrateKbps +
+                            "kbps required=" + requiredKbps + "kbps buffer=" + bufferAheadMs +
+                            "ms; preserve buffer"
+                    )
+                    return Decision(
+                        false,
+                        bitrateKbps,
+                        throughputKbps,
+                        bufferAheadMs,
+                        "throughput-below-format-bitrate"
+                    )
+                }
+            }
+
+            return Decision(
+                false,
+                bitrateKbps,
+                throughputKbps,
+                bufferAheadMs,
+                "buffer-still-available"
+            )
+        }
 
         if (bitrateKbps == UNKNOWN || throughputKbps == UNKNOWN) {
-            return Decision(true, bitrateKbps, throughputKbps, bufferAheadMs, "insufficient-metrics")
+            return Decision(
+                true,
+                bitrateKbps,
+                throughputKbps,
+                bufferAheadMs,
+                "buffer-exhausted-insufficient-metrics"
+            )
         }
 
-        val requiredKbps = max(1L, (bitrateKbps * SAFETY_FACTOR).toLong())
-        val underspeed = throughputKbps < requiredKbps
-
-        if (isVideo && underspeed && bufferAheadMs > 0L) {
-            Log.w(TAG, "VIDEO network underspeed: throughput=" + throughputKbps + "kbps format=" + bitrateKbps + "kbps required=" + requiredKbps + "kbps buffer=" + bufferAheadMs + "ms; keep player alive for adaptive selection")
-            return Decision(false, bitrateKbps, throughputKbps, bufferAheadMs, "throughput-below-format-bitrate")
-        }
-
-        return Decision(true, bitrateKbps, throughputKbps, bufferAheadMs, "recovery-allowed")
+        return Decision(
+            true,
+            bitrateKbps,
+            throughputKbps,
+            bufferAheadMs,
+            "buffer-exhausted"
+        )
     }
 }
