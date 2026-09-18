@@ -56,6 +56,15 @@ class MainActivity : AppCompatActivity() {
 
     private val executor = Executors.newSingleThreadExecutor()
 
+    private lateinit var serverField: EditText
+    private lateinit var usernameField: EditText
+    private lateinit var passwordField: EditText
+    private lateinit var loginButton: Button
+
+    private val prefs by lazy {
+        getSharedPreferences("audiomix_settings", Context.MODE_PRIVATE)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -99,6 +108,7 @@ class MainActivity : AppCompatActivity() {
         container.addView(title)
 
         val server = EditText(this)
+        serverField = server
         server.hint = "Server URL"
         server.setTextColor(Color.WHITE)
         server.setHintTextColor(Color.GRAY)
@@ -115,6 +125,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         val username = EditText(this)
+        usernameField = username
         username.hint = "Username"
         username.setTextColor(Color.WHITE)
         username.setHintTextColor(Color.GRAY)
@@ -131,6 +142,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         val password = EditText(this)
+        passwordField = password
         password.hint = "Password"
         password.setTextColor(Color.WHITE)
         password.setHintTextColor(Color.GRAY)
@@ -149,7 +161,7 @@ class MainActivity : AppCompatActivity() {
             }
         )
 
-        val loginButton = Button(this)
+        loginButton = Button(this)
         loginButton.text = "تسجيل الدخول"
 
         container.addView(
@@ -213,6 +225,14 @@ class MainActivity : AppCompatActivity() {
                             credentials = creds
                             channels = result
 
+                            // حفظ بيانات Xtream على الجهاز حتى لا يضطر المستخدم
+                            // لإدخالها مرة أخرى بعد إغلاق التطبيق.
+                            prefs.edit()
+                                .putString("server", creds.server)
+                                .putString("username", creds.username)
+                                .putString("password", creds.password)
+                                .apply()
+
                             showChannelScreen()
                         }
                     }
@@ -235,6 +255,19 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContentView(root)
+
+        // استعادة آخر بيانات الحساب تلقائيًا.
+        serverField.setText(prefs.getString("server", "") ?: "")
+        usernameField.setText(prefs.getString("username", "") ?: "")
+        passwordField.setText(prefs.getString("password", "") ?: "")
+
+        // إذا كانت البيانات محفوظة، حاول تسجيل الدخول تلقائيًا.
+        if (serverField.text.isNotBlank() &&
+            usernameField.text.isNotBlank() &&
+            passwordField.text.isNotBlank()
+        ) {
+            loginButton.postDelayed({ loginButton.performClick() }, 250)
+        }
     }
 
     private fun showChannelScreen() {
@@ -561,97 +594,58 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
-        val controls =
-            LinearLayout(this)
+        // قسم التحكم مقسم إلى صفين حتى تظهر جميع الأزرار،
+        // خصوصًا "تغيير الصوت"، على الهاتف وAndroid TV.
+        val controls = LinearLayout(this)
+        controls.orientation = LinearLayout.VERTICAL
+        controls.gravity = Gravity.CENTER
+        controls.setPadding(10, 10, 10, 10)
+        controls.setBackgroundColor(Color.argb(190, 0, 0, 0))
 
-        controls.orientation =
-            LinearLayout.HORIZONTAL
+        val row1 = LinearLayout(this)
+        row1.orientation = LinearLayout.HORIZONTAL
+        row1.gravity = Gravity.CENTER
 
-        controls.gravity =
-            Gravity.CENTER
+        val row2 = LinearLayout(this)
+        row2.orientation = LinearLayout.HORIZONTAL
+        row2.gravity = Gravity.CENTER
 
-        controls.setPadding(
-            10,
-            10,
-            10,
-            10
-        )
+        val delayMinus = Button(this)
+        delayMinus.text = "-0.5s"
 
-        controls.setBackgroundColor(
-            Color.argb(
-                190,
-                0,
-                0,
-                0
-            )
-        )
+        val delayText = TextView(this)
+        delayText.text = "0.0s"
+        delayText.textSize = 18f
+        delayText.setTextColor(Color.WHITE)
+        delayText.gravity = Gravity.CENTER
+        delayText.setPadding(18, 0, 18, 0)
 
-        val delayMinus =
-            Button(this)
+        val delayPlus = Button(this)
+        delayPlus.text = "+0.5s"
 
-        delayMinus.text =
-            "-0.5s"
+        val syncButton = Button(this)
+        syncButton.text = "مزامنة"
 
-        val delayText =
-            TextView(this)
+        val changeVideoButton = Button(this)
+        changeVideoButton.text = "تغيير الفيديو"
 
-        delayText.text =
-            "0.0s"
+        val changeAudioButton = Button(this)
+        changeAudioButton.text = "تغيير الصوت"
 
-        delayText.textSize =
-            18f
+        val backButton = Button(this)
+        backButton.text = "رجوع"
 
-        delayText.setTextColor(
-            Color.WHITE
-        )
+        row1.addView(delayMinus)
+        row1.addView(delayText)
+        row1.addView(delayPlus)
+        row1.addView(syncButton)
 
-        delayText.gravity =
-            Gravity.CENTER
+        row2.addView(changeVideoButton)
+        row2.addView(changeAudioButton)
+        row2.addView(backButton)
 
-        delayText.setPadding(
-            25,
-            0,
-            25,
-            0
-        )
-
-        val delayPlus =
-            Button(this)
-
-        delayPlus.text =
-            "+0.5s"
-
-        val syncButton =
-            Button(this)
-
-        syncButton.text =
-            "مزامنة تلقائية"
-
-        val changeVideoButton =
-            Button(this)
-
-        changeVideoButton.text =
-            "تغيير الفيديو"
-
-        val changeAudioButton =
-            Button(this)
-
-        changeAudioButton.text =
-            "تغيير الصوت"
-
-        val backButton =
-            Button(this)
-
-        backButton.text =
-            "رجوع"
-
-        controls.addView(delayMinus)
-        controls.addView(delayText)
-        controls.addView(delayPlus)
-        controls.addView(syncButton)
-        controls.addView(changeVideoButton)
-        controls.addView(changeAudioButton)
-        controls.addView(backButton)
+        controls.addView(row1)
+        controls.addView(row2)
 
         val controlsParams =
             FrameLayout.LayoutParams(
@@ -822,22 +816,10 @@ object XtreamApi {
                 continue
             }
 
-            val candidates =
-                LinkedHashSet<String>()
+            val candidates = LinkedHashSet<String>()
 
-            val directSource =
-                item.optString("direct_source").trim()
-            val streamUrl =
-                item.optString("stream_url").trim()
-
-            if (directSource.isNotBlank()) {
-                candidates.add(directSource)
-            }
-            if (streamUrl.isNotBlank()) {
-                candidates.add(streamUrl)
-            }
-
-            // TS first: this is the most common live endpoint on Xtream panels.
+            // استخدم مسارات Xtream القياسية أولًا. بعض لوحات Xtream ترسل
+            // direct_source/stream_url غير صالحة أو غير قابلة للتشغيل بواسطة Media3.
             candidates.add(
                 "${credentials.server}/live/" +
                         "${credentials.username}/" +
@@ -845,7 +827,6 @@ object XtreamApi {
                         "$id.ts"
             )
 
-            // HLS fallback.
             candidates.add(
                 "${credentials.server}/live/" +
                         "${credentials.username}/" +
@@ -853,13 +834,19 @@ object XtreamApi {
                         "$id.m3u8"
             )
 
-            // Some panels accept the extensionless endpoint.
             candidates.add(
                 "${credentials.server}/live/" +
                         "${credentials.username}/" +
                         "${credentials.password}/" +
                         id
             )
+
+            // ثم جرّب المسارات التي ترسلها لوحة Xtream نفسها كاحتياط.
+            val directSource = item.optString("direct_source").trim()
+            val streamUrl = item.optString("stream_url").trim()
+
+            if (directSource.isNotBlank()) candidates.add(directSource)
+            if (streamUrl.isNotBlank()) candidates.add(streamUrl)
 
             val urls = candidates.filter { it.isNotBlank() }
             if (urls.isEmpty()) continue
@@ -960,7 +947,7 @@ class DualStreamPlayer(
                 .build()
         )
 
-        val loadControl = DefaultLoadControl.Builder()
+        fun newLoadControl() = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 10_000,
                 30_000,
@@ -974,13 +961,13 @@ class DualStreamPlayer(
             .setEnableDecoderFallback(true)
 
         videoPlayer = ExoPlayer.Builder(context)
-            .setLoadControl(loadControl)
+            .setLoadControl(newLoadControl())
             .setRenderersFactory(renderersFactory)
             .build()
 
         audioPlayer = ExoPlayer.Builder(context)
             .setTrackSelector(audioSelector)
-            .setLoadControl(loadControl)
+            .setLoadControl(newLoadControl())
             .setRenderersFactory(renderersFactory)
             .build()
 
