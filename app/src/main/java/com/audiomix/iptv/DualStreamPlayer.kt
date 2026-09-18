@@ -33,6 +33,8 @@ class DualStreamPlayer(
     private var videoGeneration = 0L
     private var audioGeneration = 0L
     private var audioErrorShown = false
+    private var videoBufferingSince = 0L
+    private var audioBufferingSince = 0L
     private var videoUrls = initialVideoUrls.distinct().filter { it.isNotBlank() }
     private var audioUrls = initialAudioUrls.distinct().filter { it.isNotBlank() }
     private var audioIndex = 0
@@ -56,6 +58,7 @@ class DualStreamPlayer(
         audioDiagnostics.attach(audioPlayer)
 
         installListeners()
+        handler.post(bufferWatchdog)
         prepareVideo(videoUrls.first())
         prepareAudio(audioUrls.first())
     }
@@ -180,6 +183,7 @@ class DualStreamPlayer(
 
             override fun onRenderedFirstFrame() {
                 recovery.resetAllFor("video")
+                videoBufferingSince = 0L
             }
         })
 
@@ -193,7 +197,11 @@ class DualStreamPlayer(
                         " position=" + audioPlayer.currentPosition +
                         " url=" + currentAudioUrl
                 )
-                if (state == Player.STATE_READY) recovery.resetAllFor("audio")
+                if (state == Player.STATE_READY) {
+                    recovery.resetAllFor("audio")
+                    audioBufferingSince = 0L
+                }
+                if (state != Player.STATE_BUFFERING) audioBufferingSince = 0L
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -213,6 +221,66 @@ class DualStreamPlayer(
                 tryNextAudioCandidate(error.errorCodeName)
             }
         })
+    }
+
+    private val bufferWatchdog = object : Runnable {
+        override fun run() {
+            if (released) return
+
+            val now = android.os.SystemClock.elapsedRealtime()
+
+            if (videoPlayer.playbackState == Player.STATE_BUFFERING &&
+                videoPlayer.isLoading &&
+                (videoPlayer.bufferedPosition - videoPlayer.currentPosition) <= 500L
+            ) {
+                if (videoBufferingSince == 0L) videoBufferingSince = now
+                if (now - videoBufferingSince >= 6_000L) {
+                    val generation = videoGeneration
+                    Log.w(TAG, "VIDEO_STARVATION generation=$generation")
+                    recovery.retry(
+                        "video-starvation",
+                        generation,
+                        { videoGeneration == generation }
+                    ) {
+                        if (!released && videoGeneration == generation) {
+                            videoPlayer.prepare()
+                            videoPlayer.playWhenReady = true
+                            videoPlayer.play()
+                        }
+                    }
+                    videoBufferingSince = now
+                }
+            } else if (videoPlayer.playbackState != Player.STATE_BUFFERING) {
+                videoBufferingSince = 0L
+            }
+
+            if (audioPlayer.playbackState == Player.STATE_BUFFERING &&
+                audioPlayer.isLoading &&
+                (audioPlayer.bufferedPosition - audioPlayer.currentPosition) <= 500L
+            ) {
+                if (audioBufferingSince == 0L) audioBufferingSince = now
+                if (now - audioBufferingSince >= 6_000L) {
+                    val generation = audioGeneration
+                    Log.w(TAG, "AUDIO_STARVATION generation=$generation")
+                    recovery.retry(
+                        "audio-starvation",
+                        generation,
+                        { audioGeneration == generation }
+                    ) {
+                        if (!released && audioGeneration == generation) {
+                            audioPlayer.prepare()
+                            audioPlayer.playWhenReady = true
+                            audioPlayer.play()
+                        }
+                    }
+                    audioBufferingSince = now
+                }
+            } else if (audioPlayer.playbackState != Player.STATE_BUFFERING) {
+                audioBufferingSince = 0L
+            }
+
+            if (!released) handler.postDelayed(this, 2_000L)
+        }
     }
 
     private fun recoverBehindLiveWindow(player: ExoPlayer, key: String) {
