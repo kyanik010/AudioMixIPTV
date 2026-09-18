@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import java.io.IOException
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -104,7 +105,7 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
         eventTime: AnalyticsListener.EventTime,
         loadEventInfo: LoadEventInfo,
         mediaLoadData: MediaLoadData,
-        error: Exception,
+        error: IOException,
         wasCanceled: Boolean
     ) {
         activeLoads.updateAndGet { (it - 1).coerceAtLeast(0) }
