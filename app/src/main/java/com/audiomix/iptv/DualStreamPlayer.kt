@@ -46,6 +46,66 @@ class DualStreamPlayer(
     private val videoDiagnostics = PlaybackDiagnostics("VIDEO")
     private val audioDiagnostics = PlaybackDiagnostics("AUDIO")
 
+    private val bufferWatchdog: Runnable = object : Runnable {
+        override fun run() {
+            if (released) return
+
+            val now = android.os.SystemClock.elapsedRealtime()
+
+            if (videoPlayer.playbackState == Player.STATE_BUFFERING &&
+                videoPlayer.isLoading &&
+                (videoPlayer.bufferedPosition - videoPlayer.currentPosition) <= 500L
+            ) {
+                if (videoBufferingSince == 0L) videoBufferingSince = now
+                if (now - videoBufferingSince >= 6_000L) {
+                    val generation = videoGeneration
+                    Log.w(TAG, "VIDEO_STARVATION generation=$generation")
+                    recovery.retry(
+                        "video-starvation",
+                        generation,
+                        { videoGeneration == generation }
+                    ) {
+                        if (!released && videoGeneration == generation) {
+                            videoPlayer.prepare()
+                            videoPlayer.playWhenReady = true
+                            videoPlayer.play()
+                        }
+                    }
+                    videoBufferingSince = now
+                }
+            } else if (videoPlayer.playbackState != Player.STATE_BUFFERING) {
+                videoBufferingSince = 0L
+            }
+
+            if (audioPlayer.playbackState == Player.STATE_BUFFERING &&
+                audioPlayer.isLoading &&
+                (audioPlayer.bufferedPosition - audioPlayer.currentPosition) <= 500L
+            ) {
+                if (audioBufferingSince == 0L) audioBufferingSince = now
+                if (now - audioBufferingSince >= 6_000L) {
+                    val generation = audioGeneration
+                    Log.w(TAG, "AUDIO_STARVATION generation=$generation")
+                    recovery.retry(
+                        "audio-starvation",
+                        generation,
+                        { audioGeneration == generation }
+                    ) {
+                        if (!released && audioGeneration == generation) {
+                            audioPlayer.prepare()
+                            audioPlayer.playWhenReady = true
+                            audioPlayer.play()
+                        }
+                    }
+                    audioBufferingSince = now
+                }
+            } else if (audioPlayer.playbackState != Player.STATE_BUFFERING) {
+                audioBufferingSince = 0L
+            }
+
+            if (!released) handler.postDelayed(this, 2_000L)
+        }
+    }
+
     init {
         require(videoUrls.isNotEmpty()) { "No video URL" }
         require(audioUrls.isNotEmpty()) { "No audio URL" }
@@ -226,66 +286,6 @@ class DualStreamPlayer(
                 tryNextAudioCandidate(error.errorCodeName)
             }
         })
-    }
-
-    private val bufferWatchdog: Runnable = object : Runnable {
-        override fun run() {
-            if (released) return
-
-            val now = android.os.SystemClock.elapsedRealtime()
-
-            if (videoPlayer.playbackState == Player.STATE_BUFFERING &&
-                videoPlayer.isLoading &&
-                (videoPlayer.bufferedPosition - videoPlayer.currentPosition) <= 500L
-            ) {
-                if (videoBufferingSince == 0L) videoBufferingSince = now
-                if (now - videoBufferingSince >= 6_000L) {
-                    val generation = videoGeneration
-                    Log.w(TAG, "VIDEO_STARVATION generation=$generation")
-                    recovery.retry(
-                        "video-starvation",
-                        generation,
-                        { videoGeneration == generation }
-                    ) {
-                        if (!released && videoGeneration == generation) {
-                            videoPlayer.prepare()
-                            videoPlayer.playWhenReady = true
-                            videoPlayer.play()
-                        }
-                    }
-                    videoBufferingSince = now
-                }
-            } else if (videoPlayer.playbackState != Player.STATE_BUFFERING) {
-                videoBufferingSince = 0L
-            }
-
-            if (audioPlayer.playbackState == Player.STATE_BUFFERING &&
-                audioPlayer.isLoading &&
-                (audioPlayer.bufferedPosition - audioPlayer.currentPosition) <= 500L
-            ) {
-                if (audioBufferingSince == 0L) audioBufferingSince = now
-                if (now - audioBufferingSince >= 6_000L) {
-                    val generation = audioGeneration
-                    Log.w(TAG, "AUDIO_STARVATION generation=$generation")
-                    recovery.retry(
-                        "audio-starvation",
-                        generation,
-                        { audioGeneration == generation }
-                    ) {
-                        if (!released && audioGeneration == generation) {
-                            audioPlayer.prepare()
-                            audioPlayer.playWhenReady = true
-                            audioPlayer.play()
-                        }
-                    }
-                    audioBufferingSince = now
-                }
-            } else if (audioPlayer.playbackState != Player.STATE_BUFFERING) {
-                audioBufferingSince = 0L
-            }
-
-            if (!released) handler.postDelayed(this, 2_000L)
-        }
     }
 
     private fun recoverBehindLiveWindow(player: ExoPlayer, key: String) {
