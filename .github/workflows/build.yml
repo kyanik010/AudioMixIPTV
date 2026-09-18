@@ -31,8 +31,6 @@ jobs:
             exit 1
           fi
 
-          # sdkmanager is .../cmdline-tools/<version>/bin/sdkmanager.
-          # The Android SDK root is four directories above the executable.
           SDKROOT="$(dirname "$(dirname "$(dirname "$(dirname "$SDKMANAGER")")")")"
 
           echo "ANDROID_HOME=$SDKROOT" >> "$GITHUB_ENV"
@@ -45,23 +43,23 @@ jobs:
           "$SDKMANAGER" --version
 
           yes | "$SDKMANAGER" --sdk_root="$SDKROOT" --licenses >/dev/null || true
-          "$SDKMANAGER" --sdk_root="$SDKROOT" "platform-tools" "platforms;android-35" "build-tools;35.0.0" "build-tools;34.0.0"
+          "$SDKMANAGER" --sdk_root="$SDKROOT"             "platform-tools"             "platforms;android-36"             "build-tools;35.0.0"             "build-tools;34.0.0"
 
           yes | "$SDKMANAGER" --sdk_root="$SDKROOT" --licenses >/dev/null || true
 
-      - name: Install Gradle 8.9
+      - name: Install Gradle 8.11
         run: |
-          wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip
-          unzip -q gradle-8.9-bin.zip
-          echo "$PWD/gradle-8.9/bin" >> "$GITHUB_PATH"
+          wget -q https://services.gradle.org/distributions/gradle-8.11-bin.zip
+          unzip -q gradle-8.11-bin.zip
+          echo "$PWD/gradle-8.11/bin" >> "$GITHUB_PATH"
 
       - name: Check toolchain
         run: |
           java -version
           gradle --version
           echo "ANDROID_HOME=$ANDROID_HOME"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --list_installed 2>/dev/null | head -80 || true
-          test -d "$ANDROID_HOME/platforms/android-35"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --list_installed 2>/dev/null | head -100 || true
+          test -d "$ANDROID_HOME/platforms/android-36"
           test -d "$ANDROID_HOME/build-tools/34.0.0"
 
       - name: Build Debug APK
