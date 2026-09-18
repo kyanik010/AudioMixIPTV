@@ -9,6 +9,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.LoadEventInfo
+import java.util.concurrent.atomic.AtomicInteger
 import androidx.media3.exoplayer.source.MediaLoadData
 
 class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
@@ -20,6 +21,8 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
     private var droppedFramesTotal = 0L
     private var firstFrameAtMs = 0L
     private val networkMetrics = NetworkMetrics()
+    private val activeLoads = AtomicInteger(0)
+    @Volatile private var lastLoadUri: String? = null
     private val handler = Handler(Looper.getMainLooper())
     private var periodic = false
 
@@ -78,11 +81,44 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
         Log.d(TAG, "$tag format=$kind mime=${format.sampleMimeType} bitrate=${format.bitrate}bps width=${format.width} height=${format.height} fps=${format.frameRate} audioRate=${format.sampleRate} channels=${format.channelCount} codecs=${format.codecs}")
     }
 
+    override fun onLoadStarted(
+        eventTime: AnalyticsListener.EventTime,
+        loadEventInfo: LoadEventInfo,
+        mediaLoadData: MediaLoadData
+    ) {
+        activeLoads.incrementAndGet()
+        lastLoadUri = loadEventInfo.dataSpec.uri.toString()
+        Log.d(TAG, tag + " LOAD_START active=" + activeLoads.get() + " uri=" + lastLoadUri)
+    }
+
+    override fun onLoadCanceled(
+        eventTime: AnalyticsListener.EventTime,
+        loadEventInfo: LoadEventInfo,
+        mediaLoadData: MediaLoadData
+    ) {
+        activeLoads.updateAndGet { (it - 1).coerceAtLeast(0) }
+        Log.w(TAG, tag + " LOAD_CANCEL active=" + activeLoads.get() + " uri=" + loadEventInfo.dataSpec.uri)
+    }
+
+    override fun onLoadError(
+        eventTime: AnalyticsListener.EventTime,
+        loadEventInfo: LoadEventInfo,
+        mediaLoadData: MediaLoadData,
+        error: Exception,
+        wasCanceled: Boolean
+    ) {
+        activeLoads.updateAndGet { (it - 1).coerceAtLeast(0) }
+        lastLoadUri = loadEventInfo.dataSpec.uri.toString()
+        Log.w(TAG, tag + " LOAD_ERROR active=" + activeLoads.get() + " canceled=" + wasCanceled + " uri=" + lastLoadUri + " error=" + error.message)
+    }
+
     override fun onLoadCompleted(
         eventTime: AnalyticsListener.EventTime,
         loadEventInfo: LoadEventInfo,
         mediaLoadData: MediaLoadData
     ) {
+        activeLoads.updateAndGet { (it - 1).coerceAtLeast(0) }
+        lastLoadUri = loadEventInfo.dataSpec.uri.toString()
         networkMetrics.record(loadEventInfo)
         val snapshot = networkMetrics.snapshot()
         if (snapshot.loadCount == 1L || snapshot.loadCount % 5L == 0L) {
@@ -112,7 +148,7 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
         val p = player ?: return
         val bufferMs = (p.bufferedPosition - p.currentPosition).coerceAtLeast(0L)
         val network = networkMetrics.snapshot()
-        Log.d(TAG, "$tag reason=$reason state=${stateName(lastState)} playing=${p.isPlaying} loading=$lastLoading position=${p.currentPosition} buffered=${p.bufferedPosition} bufferMs=$bufferMs liveOffset=${p.currentLiveOffset} totalBufferingMs=$totalBufferingMs bytes=${network.totalBytes} avgKbps=${network.averageThroughputKbps} lastKbps=${network.lastThroughputKbps} peakKbps=${network.peakThroughputKbps} loads=${network.loadCount} droppedFrames=$droppedFramesTotal firstFrameAt=$firstFrameAtMs")
+        Log.d(TAG, "$tag reason=$reason state=${stateName(lastState)} playing=${p.isPlaying} loading=$lastLoading position=${p.currentPosition} buffered=${p.bufferedPosition} bufferMs=$bufferMs liveOffset=${p.currentLiveOffset} totalBufferingMs=$totalBufferingMs bytes=${network.totalBytes} avgKbps=${network.averageThroughputKbps} lastKbps=${network.lastThroughputKbps} peakKbps=${network.peakThroughputKbps} loads=${network.loadCount} activeLoads=${activeLoads.get()} lastUri=${lastLoadUri} droppedFrames=$droppedFramesTotal firstFrameAt=$firstFrameAtMs")
     }
 
     private fun stateName(state: Int): String = when (state) {
