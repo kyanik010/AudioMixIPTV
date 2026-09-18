@@ -47,11 +47,11 @@ jobs:
 
           yes | "$SDKMANAGER" --sdk_root="$SDKROOT" --licenses >/dev/null || true
 
-      - name: Install Gradle 8.11
+      - name: Install Gradle 8.11.1
         run: |
-          wget -q https://services.gradle.org/distributions/gradle-8.11-bin.zip
-          unzip -q gradle-8.11-bin.zip
-          echo "$PWD/gradle-8.11/bin" >> "$GITHUB_PATH"
+          wget -q https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+          unzip -q gradle-8.11.1-bin.zip
+          echo "$PWD/gradle-8.11.1/bin" >> "$GITHUB_PATH"
 
       - name: Check toolchain
         run: |
