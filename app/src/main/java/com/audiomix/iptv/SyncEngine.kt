@@ -21,8 +21,8 @@ class SyncEngine(
 
     companion object {
         private const val TAG = "AudioMix-Sync"
-        private const val SAMPLE_INTERVAL_MS = 2_000L
-        private const val SOFT_THRESHOLD_MS = 120L
+        private const val SAMPLE_INTERVAL_MS = 2_500L
+        private const val SOFT_THRESHOLD_MS = 180L
         private const val HARD_THRESHOLD_MS = 1_800L
         private const val FORCE_THRESHOLD_MS = 700L
         private const val HARD_COOLDOWN_MS = 8_000L
@@ -119,10 +119,19 @@ class SyncEngine(
         }
 
         if (now >= speedCorrectionUntil) {
-            val speed = if (drift > 0L) MAX_SPEED else MIN_SPEED
+            // Use proportional correction instead of jumping immediately to
+            // +/-1.5%. Small live drift should sound continuous, not like a
+            // repeated micro-stutter.
+            val ratio = (absolute.coerceAtMost(1_500L) / 1_500f)
+            val correction = (ratio * 0.015f).coerceIn(0.0015f, 0.015f)
+            val speed = if (drift > 0L) {
+                (1f + correction).coerceAtMost(MAX_SPEED)
+            } else {
+                (1f - correction).coerceAtLeast(MIN_SPEED)
+            }
             audioPlayer.setPlaybackSpeed(speed)
             speedCorrectionUntil = now + SPEED_WINDOW_MS
-            Log.d(TAG, "soft-sync drift=${drift}ms speed=${speed}")
+            Log.d(TAG, "soft-sync drift=" + drift + "ms speed=" + speed)
         }
     }
 
