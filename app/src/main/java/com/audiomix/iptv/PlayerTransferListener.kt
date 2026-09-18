@@ -14,6 +14,8 @@ class PlayerTransferListener(
 
     private val totalBytes = AtomicLong(0L)
     private val windowBytes = AtomicLong(0L)
+    private val activeTransfers = AtomicLong(0L)
+    @Volatile private var lastUri: String? = null
     @Volatile private var windowStartMs = SystemClock.elapsedRealtime()
 
     override fun onTransferInitializing(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {
@@ -22,6 +24,10 @@ class PlayerTransferListener(
 
     override fun onTransferStart(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {
         bandwidthMeter.onTransferStart(source, dataSpec, isNetwork)
+        if (isNetwork) {
+            activeTransfers.incrementAndGet()
+            lastUri = dataSpec.uri.toString()
+        }
     }
 
     override fun onBytesTransferred(
@@ -39,6 +45,7 @@ class PlayerTransferListener(
 
     override fun onTransferEnd(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {
         bandwidthMeter.onTransferEnd(source, dataSpec, isNetwork)
+        if (isNetwork) activeTransfers.updateAndGet { (it - 1L).coerceAtLeast(0L) }
     }
 
     fun snapshot(): Snapshot {
@@ -48,9 +55,16 @@ class PlayerTransferListener(
         windowStartMs = now
         return Snapshot(
             totalBytes = totalBytes.get(),
-            windowKbps = (bytes * 8_000L / elapsed).toInt()
+            windowKbps = (bytes * 8_000L / elapsed).toInt(),
+            activeTransfers = activeTransfers.get(),
+            lastUri = lastUri
         )
     }
 
-    data class Snapshot(val totalBytes: Long, val windowKbps: Int)
+    data class Snapshot(
+        val totalBytes: Long,
+        val windowKbps: Int,
+        val activeTransfers: Long,
+        val lastUri: String?
+    )
 }
