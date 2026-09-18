@@ -11,61 +11,27 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
-
-      - name: Locate and configure Android SDK
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android SDK packages
         run: |
-          set -e
-          SDKMANAGER="$(find /usr/local/lib/android/sdk /opt/android-sdk "$HOME" -type f -name sdkmanager 2>/dev/null | head -1)"
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager not found"
-            exit 1
-          fi
-
-          SDKROOT="$(dirname "$(dirname "$(dirname "$(dirname "$SDKMANAGER")")")")"
-
-          echo "ANDROID_HOME=$SDKROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$SDKROOT" >> "$GITHUB_ENV"
-          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
-          echo "$SDKROOT/platform-tools" >> "$GITHUB_PATH"
-
-          echo "SDKMANAGER=$SDKMANAGER"
-          echo "Using Android SDK: $SDKROOT"
-          "$SDKMANAGER" --version
-
-          yes | "$SDKMANAGER" --sdk_root="$SDKROOT" --licenses >/dev/null || true
-          "$SDKMANAGER" --sdk_root="$SDKROOT"             "platform-tools"             "platforms;android-36"             "build-tools;35.0.0"             "build-tools;34.0.0"
-
-          yes | "$SDKMANAGER" --sdk_root="$SDKROOT" --licenses >/dev/null || true
-
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
       - name: Install Gradle 8.11.1
         run: |
           wget -q https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
           unzip -q gradle-8.11.1-bin.zip
           echo "$PWD/gradle-8.11.1/bin" >> "$GITHUB_PATH"
-
-      - name: Check toolchain
-        run: |
-          java -version
-          gradle --version
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --list_installed 2>/dev/null | head -100 || true
-          test -d "$ANDROID_HOME/platforms/android-36"
-          test -d "$ANDROID_HOME/build-tools/34.0.0"
-
       - name: Build Debug APK
-        run: |
-          gradle --no-daemon --stacktrace --info assembleDebug
-
+        run: gradle --no-daemon --stacktrace assembleDebug
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
