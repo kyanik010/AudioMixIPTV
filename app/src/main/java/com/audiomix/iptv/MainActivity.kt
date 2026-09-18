@@ -1003,7 +1003,7 @@ class DualStreamPlayer(
 
         audioPlayer.setMediaItem(
             createMediaItem(
-                audioUrl
+                currentAudioUrl!!
             )
         )
 
