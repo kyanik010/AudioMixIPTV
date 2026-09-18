@@ -65,6 +65,25 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
         }
     }
 
+    override fun onDownstreamFormatChanged(
+        eventTime: AnalyticsListener.EventTime,
+        mediaLoadData: MediaLoadData
+    ) {
+        val format = mediaLoadData.trackFormat ?: return
+        val kind = when (mediaLoadData.trackType) {
+            androidx.media3.common.C.TRACK_TYPE_VIDEO -> "VIDEO"
+            androidx.media3.common.C.TRACK_TYPE_AUDIO -> "AUDIO"
+            else -> "TRACK"
+        }
+        Log.d(
+            TAG,
+            "$tag format=$kind mime=${format.sampleMimeType} " +
+                "bitrate=${format.bitrate}bps width=${format.width} height=${format.height} " +
+                "fps=${format.frameRate} audioRate=${format.sampleRate} channels=${format.channelCount} " +
+                "codecs=${format.codecs}"
+        )
+    }
+
     override fun onLoadCompleted(
         eventTime: AnalyticsListener.EventTime,
         loadEventInfo: LoadEventInfo,
