@@ -20,10 +20,10 @@ class SyncEngine(
 
     companion object {
         private const val TAG = "AudioMix-Sync"
-        private const val SAMPLE_INTERVAL_MS = 2_000L
-        private const val CORRECTION_THRESHOLD_MS = 1_500L
+        private const val SAMPLE_INTERVAL_MS = 3_000L
+        private const val CORRECTION_THRESHOLD_MS = 2_500L
         private const val FORCE_THRESHOLD_MS = 700L
-        private const val CORRECTION_COOLDOWN_MS = 4_000L
+        private const val CORRECTION_COOLDOWN_MS = 10_000L
     }
 
     private val monitor = object : Runnable {
@@ -37,7 +37,7 @@ class SyncEngine(
     fun start() {
         if (released) return
         handler.removeCallbacks(monitor)
-        handler.postDelayed(monitor, 2_500L)
+        handler.postDelayed(monitor, 3_000L)
     }
 
     fun setDelay(deltaMs: Long) {
@@ -61,13 +61,12 @@ class SyncEngine(
         val videoOffset = videoPlayer.currentLiveOffset
         val audioOffset = audioPlayer.currentLiveOffset
 
+        // Live-offset is the only reliable common reference for two
+        // independent live streams. Do not compare raw positions unless
+        // both streams expose a live timeline.
         if (videoOffset != C.TIME_UNSET && audioOffset != C.TIME_UNSET) {
             val desiredAudioOffset = videoOffset + manualDelayMs
             correctAudio(audioOffset - desiredAudioOffset, force)
-        } else {
-            val difference = audioPlayer.currentPosition -
-                videoPlayer.currentPosition - manualDelayMs
-            correctAudio(difference, force)
         }
     }
 
