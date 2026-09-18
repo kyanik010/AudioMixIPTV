@@ -76,7 +76,6 @@ class DualStreamPlayer(
                 recovery.retry("video-no-frame", generation, { videoGeneration == generation }) {
                     if (!released && videoGeneration == generation) {
                         videoPlayer.seekToDefaultPosition()
-                        videoPlayer.prepare()
                         videoPlayer.playWhenReady = true
                         videoPlayer.play()
                     }
@@ -98,7 +97,7 @@ class DualStreamPlayer(
                     Log.w(TAG, "VIDEO_POSITION_STALL generation=$generation stalledMs=${now - videoLastProgressAtMs}")
                     recovery.retry("video-position-stall", generation, { videoGeneration == generation }) {
                         if (!released && videoGeneration == generation) {
-                            videoPlayer.prepare()
+                            videoPlayer.seekToDefaultPosition()
                             videoPlayer.playWhenReady = true
                             videoPlayer.play()
                         }
