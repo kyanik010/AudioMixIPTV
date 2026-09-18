@@ -228,7 +228,7 @@ class DualStreamPlayer(
         })
     }
 
-    private val bufferWatchdog = object : Runnable {
+    private val bufferWatchdog: Runnable = object : Runnable {
         override fun run() {
             if (released) return
 
