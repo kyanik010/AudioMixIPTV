@@ -31,8 +31,6 @@ class DualStreamPlayer(
     private val bandwidthMeter = DefaultBandwidthMeter.Builder(context).build()
     private val adaptiveNetwork = AdaptiveNetworkController()
     private val networkContention = NetworkContentionController()
-    private val videoNetworkGate = NetworkGate()
-    private val audioNetworkGate = NetworkGate()
     private var audioNetworkYielding = false
     private val recovery = RecoverySystem()
     private val handler = Handler(Looper.getMainLooper())
@@ -126,17 +124,12 @@ class DualStreamPlayer(
                     )
                     val decision = adaptiveNetwork.evaluate(videoPlayer, true, videoAheadMs, videoDiagnostics.networkSnapshot())
                     if (decision.allowRecovery) {
-                        recovery.retry(
-                            "video-starvation",
-                            generation,
-                            { videoGeneration == generation }
-                        ) {
-                            if (!released && videoGeneration == generation) {
-                                videoPlayer.prepare()
-                                videoPlayer.playWhenReady = true
-                                videoPlayer.play()
-                            }
-                        }
+                        // Do not re-prepare a live player merely because its
+                        // buffer is temporarily low. A prepare() tears down the
+                        // current loading pipeline and is a common source of
+                        // visible stutter on bursty IPTV feeds. Let ExoPlayer's
+                        // LoadControl continue filling the existing timeline.
+                        Log.d(TAG, "VIDEO_STARVATION keep-current-load reason=" + decision.reason)
                     } else {
                         Log.d(
                             TAG,
@@ -163,8 +156,8 @@ class DualStreamPlayer(
             )
             if (contention.protectingVideo && !audioNetworkYielding) {
                 audioNetworkYielding = true
-                audioNetworkGate.setBlocked(true)
                 audioPlayer.playWhenReady = false
+                audioPlayer.pause()
                 Log.w(
                     TAG,
                     "NETWORK_PROTECTION yieldAudio=true reason=${contention.reason} " +
@@ -173,8 +166,8 @@ class DualStreamPlayer(
                 )
             } else if (!contention.protectingVideo && audioNetworkYielding) {
                 audioNetworkYielding = false
-                audioNetworkGate.setBlocked(false)
                 audioPlayer.playWhenReady = true
+                audioPlayer.play()
                 audioPlayer.play()
                 Log.i(
                     TAG,
@@ -203,17 +196,11 @@ class DualStreamPlayer(
                             "AUDIO_STARVATION generation=" + generation + " aheadMs=" + audioAheadMs + " graceMs=" + grace +
                                 " profile=" + bufferManager.profileDescription()
                         )
-                        recovery.retry(
-                            "audio-starvation",
-                            generation,
-                            { audioGeneration == generation }
-                        ) {
-                            if (!released && audioGeneration == generation) {
-                                audioPlayer.prepare()
-                                audioPlayer.playWhenReady = true
-                                audioPlayer.play()
-                            }
-                        }
+                        // Audio starvation is not a reason to tear down the
+                        // live audio timeline. Re-preparing here can create a
+                        // second HTTP request and reset the live edge. Preserve
+                        // the current player and let its existing loader recover.
+                        Log.d(TAG, "AUDIO_STARVATION keep-current-load reason=" + decision.reason)
                     } else {
                         Log.d(
                             TAG,
@@ -257,11 +244,12 @@ class DualStreamPlayer(
             .setAllowCrossProtocolRedirects(true)
             .setTransferListener(bandwidthMeter)
 
-        val baseDataSourceFactory = DefaultDataSource.Factory(context, httpFactory)
-        val gate = if (isAudio) audioNetworkGate else videoNetworkGate
-        val dataSourceFactory = DataSource.Factory {
-            NetworkGateDataSource(baseDataSourceFactory.createDataSource(), gate)
-        }
+        // Do not block a DataSource.read() with a monitor. That keeps a network
+        // loader thread parked while the underlying HTTP call remains open and
+        // can turn a temporary contention event into a socket stall.
+        // ExoPlayer itself owns loading/pausing; contention control below only
+        // yields the secondary player.
+        val dataSourceFactory = DefaultDataSource.Factory(context, httpFactory)
 
         val retryPolicy = object : DefaultLoadErrorHandlingPolicy() {
             override fun getRetryDelayMsFor(
@@ -512,8 +500,6 @@ class DualStreamPlayer(
         if (released) return
         playbackSessionActive = true
         videoUserPaused = false
-        videoNetworkGate.setBlocked(false)
-        audioNetworkGate.setBlocked(false)
         videoPlayer.volume = 0f
         audioPlayer.volume = 1f
         audioNetworkYielding = false
@@ -685,8 +671,6 @@ class DualStreamPlayer(
         if (released) return
         released = true
         playbackSessionActive = false
-        audioNetworkGate.setBlocked(false)
-        videoNetworkGate.setBlocked(false)
         handler.removeCallbacksAndMessages(null)
         syncEngine.release()
         recovery.release()
