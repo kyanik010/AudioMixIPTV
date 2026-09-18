@@ -73,7 +73,7 @@ class DualStreamPlayer(
                     val decision = adaptiveNetwork.evaluate(videoPlayer, true, videoAheadMs)
                     if (!decision.allowRecovery) {
                         videoBufferingSince = now
-                        return@Runnable
+                        return
                     }
                     recovery.retry(
                         "video-starvation",
