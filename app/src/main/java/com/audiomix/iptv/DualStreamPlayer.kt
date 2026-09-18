@@ -559,8 +559,28 @@ class DualStreamPlayer(
             standbyAudioPlayer = nextPlayer
 
             var handedOff = false
+            val handoffDeadlineMs = android.os.SystemClock.elapsedRealtime() + AUDIO_HANDOFF_MAX_WAIT_MS
+
+            fun scheduleHandoffCheck() {
+                if (released || handedOff || audioGeneration != generation || standbyAudioPlayer !== nextPlayer) return
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (now >= handoffDeadlineMs) {
+                    handoff()
+                    return
+                }
+                handler.postDelayed({ handoff() }, AUDIO_HANDOFF_RECHECK_MS)
+            }
+
             fun handoff() {
                 if (released || handedOff || audioGeneration != generation || standbyAudioPlayer !== nextPlayer) return
+
+                val state = nextPlayer.playbackState
+                val ahead = (nextPlayer.bufferedPosition - nextPlayer.currentPosition).coerceAtLeast(0L)
+                if (state != Player.STATE_READY || ahead < AUDIO_HANDOFF_MIN_BUFFER_MS) {
+                    scheduleHandoffCheck()
+                    return
+                }
+
                 handedOff = true
 
                 nextPlayer.volume = 0f
@@ -597,12 +617,7 @@ class DualStreamPlayer(
             nextPlayer.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state == Player.STATE_READY) {
-                        val ahead = (nextPlayer.bufferedPosition - nextPlayer.currentPosition).coerceAtLeast(0L)
-                        if (ahead >= 750L) {
-                            handoff()
-                        } else {
-                            handler.postDelayed({ handoff() }, 500L)
-                        }
+                        handoff()
                     }
                 }
 
@@ -687,5 +702,8 @@ class DualStreamPlayer(
         private const val TAG = "AudioMix-Core"
         private const val NO_FRAME_TIMEOUT_MS = 12_000L
         private const val POSITION_STALL_TIMEOUT_MS = 12_000L
+        private const val AUDIO_HANDOFF_MIN_BUFFER_MS = 750L
+        private const val AUDIO_HANDOFF_RECHECK_MS = 350L
+        private const val AUDIO_HANDOFF_MAX_WAIT_MS = 5_000L
     }
 }
