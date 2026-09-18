@@ -5,9 +5,16 @@ import androidx.media3.exoplayer.DefaultLoadControl
 class BufferManager {
     fun createLoadControl(): DefaultLoadControl {
         return DefaultLoadControl.Builder()
-            .setBufferDurationsMs(20_000, 90_000, 4_000, 8_000)
+            // A larger live buffer helps absorb short stalls while avoiding
+            // the very large memory footprint of an aggressive 120s buffer.
+            .setBufferDurationsMs(
+                25_000,
+                90_000,
+                5_000,
+                10_000
+            )
             .setPrioritizeTimeOverSizeThresholds(true)
-            .setBackBuffer(15_000, false)
+            .setBackBuffer(5_000, false)
             .build()
     }
 }
