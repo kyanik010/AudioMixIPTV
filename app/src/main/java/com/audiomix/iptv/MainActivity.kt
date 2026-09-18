@@ -622,6 +622,12 @@ class MainActivity : AppCompatActivity() {
         syncButton.text =
             "مزامنة تلقائية"
 
+        val changeAudioButton =
+            Button(this)
+
+        changeAudioButton.text =
+            "تغيير الصوت"
+
         val backButton =
             Button(this)
 
@@ -632,6 +638,7 @@ class MainActivity : AppCompatActivity() {
         controls.addView(delayText)
         controls.addView(delayPlus)
         controls.addView(syncButton)
+        controls.addView(changeAudioButton)
         controls.addView(backButton)
 
         val controlsParams =
@@ -679,6 +686,20 @@ class MainActivity : AppCompatActivity() {
                 "تمت محاولة المزامنة",
                 Toast.LENGTH_SHORT
             ).show()
+        }
+
+        changeAudioButton.setOnClickListener {
+            showChannelPicker("اختر مصدر الصوت الجديد") { channel ->
+                selectedAudio = channel
+                val changed = dualPlayer?.switchAudio(channel.streamUrl) ?: false
+                if (changed) {
+                    Toast.makeText(
+                        this,
+                        "تم تغيير مصدر الصوت إلى: " + channel.name,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
         }
 
         backButton.setOnClickListener {
@@ -870,11 +891,12 @@ object XtreamApi {
 class DualStreamPlayer(
     private val context: Context,
     private val videoUrl: String,
-    private val audioUrl: String
+    audioUrl: String
 ) {
 
     private val videoPlayer: ExoPlayer
     private val audioPlayer: ExoPlayer
+    private var currentAudioUrl: String? = audioUrl
 
     private var manualDelayMs =
         0L
@@ -1056,8 +1078,8 @@ class DualStreamPlayer(
                 manualDelayMs +
                         amountMs
             ).coerceIn(
-                -10_000L,
-                10_000L
+                -5_000L,
+                5_000L
             )
 
         synchronize()
@@ -1079,6 +1101,27 @@ class DualStreamPlayer(
         synchronize(
             force = true
         )
+    }
+
+    fun switchAudio(newAudioUrl: String): Boolean {
+
+        if (released || newAudioUrl.isBlank()) return false
+        if (newAudioUrl == currentAudioUrl) return true
+
+        return try {
+            audioPlayer.stop()
+            audioPlayer.clearMediaItems()
+            audioPlayer.setMediaItem(createMediaItem(newAudioUrl))
+            audioPlayer.prepare()
+            audioPlayer.playWhenReady = true
+            currentAudioUrl = newAudioUrl
+            handler.postDelayed({
+                if (!released) synchronize(force = true)
+            }, 750)
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun synchronize(
