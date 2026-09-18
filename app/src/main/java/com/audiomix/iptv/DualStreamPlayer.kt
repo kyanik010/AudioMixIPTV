@@ -14,6 +14,7 @@ import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -26,6 +27,7 @@ class DualStreamPlayer(
     initialAudioUrls: List<String>
 ) {
     private val bufferManager = BufferManager(context)
+    private val bandwidthMeter = DefaultBandwidthMeter.Builder(context).build()
     private val recovery = RecoverySystem()
     private val handler = Handler(Looper.getMainLooper())
 
@@ -141,6 +143,7 @@ class DualStreamPlayer(
             .setConnectTimeoutMs(15_000)
             .setReadTimeoutMs(20_000)
             .setAllowCrossProtocolRedirects(true)
+            .setTransferListener(bandwidthMeter)
 
         val dataSourceFactory = DefaultDataSource.Factory(context, httpFactory)
 
@@ -168,7 +171,8 @@ class DualStreamPlayer(
         return ExoPlayer.Builder(context)
             .setLoadControl(bufferManager.createVideoLoadControl())
             .setRenderersFactory(newRenderersFactory())
-            .setMediaSourceFactory(mediaSourceFactory())
+             .setMediaSourceFactory(mediaSourceFactory())
+            .setBandwidthMeter(bandwidthMeter)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
             .also { player ->
@@ -200,6 +204,7 @@ class DualStreamPlayer(
             .setLoadControl(bufferManager.createAudioLoadControl())
             .setRenderersFactory(newRenderersFactory())
             .setMediaSourceFactory(mediaSourceFactory())
+            .setBandwidthMeter(bandwidthMeter)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
             .also { player ->
