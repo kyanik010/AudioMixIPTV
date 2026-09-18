@@ -560,6 +560,7 @@ class DualStreamPlayer(
 
             var handedOff = false
             val handoffDeadlineMs = android.os.SystemClock.elapsedRealtime() + AUDIO_HANDOFF_MAX_WAIT_MS
+            lateinit var handoff: () -> Unit
 
             fun scheduleHandoffCheck() {
                 if (released || handedOff || audioGeneration != generation || standbyAudioPlayer !== nextPlayer) return
@@ -568,11 +569,20 @@ class DualStreamPlayer(
                     handoff()
                     return
                 }
-                handler.postDelayed({ handoff() }, AUDIO_HANDOFF_RECHECK_MS)
+                handler.postDelayed(handoff, AUDIO_HANDOFF_RECHECK_MS)
             }
 
-            fun handoff() {
-                if (released || handedOff || audioGeneration != generation || standbyAudioPlayer !== nextPlayer) return
+            handoff = {
+                if (released || handedOff || audioGeneration != generation || standbyAudioPlayer !== nextPlayer) return@handoff
+
+                val state = nextPlayer.playbackState
+                val ahead = (nextPlayer.bufferedPosition - nextPlayer.currentPosition).coerceAtLeast(0L)
+                if (state != Player.STATE_READY || ahead < AUDIO_HANDOFF_MIN_BUFFER_MS) {
+                    scheduleHandoffCheck()
+                    return@handoff
+                }
+
+                handedOff = true
 
                 val state = nextPlayer.playbackState
                 val ahead = (nextPlayer.bufferedPosition - nextPlayer.currentPosition).coerceAtLeast(0L)
