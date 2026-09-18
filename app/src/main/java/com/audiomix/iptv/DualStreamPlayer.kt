@@ -42,6 +42,12 @@ class DualStreamPlayer(
     private var audioGeneration = 0L
     private var audioErrorShown = false
     private var videoBufferingSince = 0L
+    private var videoPreparedAtMs = 0L
+    private var videoFirstFrameAtMs = 0L
+    private var videoLastPositionMs = -1L
+    private var videoLastProgressAtMs = 0L
+    private var videoNoFrameRecoveryGeneration = -1L
+    private var videoStallRecoveryGeneration = -1L
     private var playbackSessionActive = false
     private var videoUserPaused = false
     private var audioBufferingSince = 0L
@@ -62,6 +68,47 @@ class DualStreamPlayer(
             if (released) return
 
             val now = android.os.SystemClock.elapsedRealtime()
+
+            // Hostile-stream protection inspired by OwnTV: a provider can open without ever rendering a frame.
+            if (playbackSessionActive && videoFirstFrameAtMs == 0L && videoPreparedAtMs > 0L &&
+                now - videoPreparedAtMs >= NO_FRAME_TIMEOUT_MS && videoNoFrameRecoveryGeneration != videoGeneration) {
+                videoNoFrameRecoveryGeneration = videoGeneration
+                val generation = videoGeneration
+                Log.w(TAG, "VIDEO_NO_FRAME generation=$generation elapsedMs=${now - videoPreparedAtMs}")
+                recovery.retry("video-no-frame", generation, { videoGeneration == generation }) {
+                    if (!released && videoGeneration == generation) {
+                        videoPlayer.seekToDefaultPosition()
+                        videoPlayer.prepare()
+                        videoPlayer.playWhenReady = true
+                        videoPlayer.play()
+                    }
+                }
+            }
+
+            // Catch a decoder/demuxer wedge where ExoPlayer stays READY and isPlaying=true.
+            if (playbackSessionActive && videoPlayer.isPlaying && videoPlayer.playbackState == Player.STATE_READY) {
+                val position = videoPlayer.currentPosition
+                if (position != videoLastPositionMs) {
+                    videoLastPositionMs = position
+                    videoLastProgressAtMs = now
+                    videoStallRecoveryGeneration = -1L
+                } else if (videoLastProgressAtMs > 0L &&
+                    now - videoLastProgressAtMs >= POSITION_STALL_TIMEOUT_MS &&
+                    videoStallRecoveryGeneration != videoGeneration) {
+                    videoStallRecoveryGeneration = videoGeneration
+                    val generation = videoGeneration
+                    Log.w(TAG, "VIDEO_POSITION_STALL generation=$generation stalledMs=${now - videoLastProgressAtMs}")
+                    recovery.retry("video-position-stall", generation, { videoGeneration == generation }) {
+                        if (!released && videoGeneration == generation) {
+                            videoPlayer.prepare()
+                            videoPlayer.playWhenReady = true
+                            videoPlayer.play()
+                        }
+                    }
+                }
+            } else if (!videoPlayer.isPlaying) {
+                videoLastProgressAtMs = 0L
+            }
 
             val videoAheadMs = (videoPlayer.bufferedPosition - videoPlayer.currentPosition).coerceAtLeast(0L)
             if (videoPlayer.playbackState == Player.STATE_BUFFERING &&
@@ -305,6 +352,10 @@ class DualStreamPlayer(
                 if (state == Player.STATE_READY) {
                     recovery.resetAllFor("video")
                     videoBufferingSince = 0L
+                    if (videoLastProgressAtMs == 0L) {
+                        videoLastPositionMs = videoPlayer.currentPosition
+                        videoLastProgressAtMs = android.os.SystemClock.elapsedRealtime()
+                    }
 
                     // A live stream can return to READY after a network stall while
                     // playWhenReady has been cleared by an internal recovery path.
@@ -366,6 +417,12 @@ class DualStreamPlayer(
             override fun onRenderedFirstFrame() {
                 recovery.resetAllFor("video")
                 videoBufferingSince = 0L
+                videoFirstFrameAtMs = android.os.SystemClock.elapsedRealtime()
+                videoNoFrameRecoveryGeneration = -1L
+                videoStallRecoveryGeneration = -1L
+                videoLastPositionMs = videoPlayer.currentPosition
+                videoLastProgressAtMs = videoFirstFrameAtMs
+                Log.i(TAG, "VIDEO first frame rendered generation=$videoGeneration")
             }
         })
 
@@ -417,6 +474,12 @@ class DualStreamPlayer(
     }
 
     private fun prepareVideo(url: String) {
+        videoFirstFrameAtMs = 0L
+        videoPreparedAtMs = android.os.SystemClock.elapsedRealtime()
+        videoLastPositionMs = -1L
+        videoLastProgressAtMs = 0L
+        videoNoFrameRecoveryGeneration = -1L
+        videoStallRecoveryGeneration = -1L
         videoPlayer.setMediaItem(createMediaItem(url))
         videoPlayer.prepare()
         videoPlayer.playWhenReady = true
@@ -640,5 +703,7 @@ class DualStreamPlayer(
 
     companion object {
         private const val TAG = "AudioMix-Core"
+        private const val NO_FRAME_TIMEOUT_MS = 12_000L
+        private const val POSITION_STALL_TIMEOUT_MS = 12_000L
     }
 }
