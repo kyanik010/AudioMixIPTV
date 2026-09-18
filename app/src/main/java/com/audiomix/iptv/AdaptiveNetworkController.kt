@@ -1,1 +1,46 @@
-package com.audiomix.iptv\n\nimport android.util.Log\nimport androidx.media3.common.Player\nimport androidx.media3.exoplayer.upstream.DefaultBandwidthMeter\nimport kotlin.math.max\n\nclass AdaptiveNetworkController(\n    private val bandwidthMeter: DefaultBandwidthMeter\n) {\n    companion object {\n        private const val TAG = "AudioMix-Adaptive"\n        private const val SAFETY_FACTOR = 1.15\n        private const val UNKNOWN = -1L\n    }\n\n    data class Decision(\n        val allowRecovery: Boolean,\n        val bitrateKbps: Long,\n        val throughputKbps: Long,\n        val bufferAheadMs: Long,\n        val reason: String\n    )\n\n    fun evaluate(player: Player, isVideo: Boolean, bufferAheadMs: Long): Decision {\n        val format = if (isVideo) player.videoFormat else player.audioFormat\n        val bitrateKbps = format?.bitrate?.takeIf { it > 0 }?.div(1000L) ?: UNKNOWN\n        val throughputKbps = bandwidthMeter.bitrateEstimate\n            .takeIf { it > 0L }\n            ?.div(1000L) ?: UNKNOWN\n\n        if (bitrateKbps == UNKNOWN || throughputKbps == UNKNOWN) {\n            return Decision(true, bitrateKbps, throughputKbps, bufferAheadMs, "insufficient-metrics")\n        }\n\n        val requiredKbps = max(1L, (bitrateKbps * SAFETY_FACTOR).toLong())\n        val underspeed = throughputKbps < requiredKbps\n\n        if (isVideo && underspeed && bufferAheadMs > 0L) {\n            Log.w(TAG, "VIDEO network underspeed: throughput=" + throughputKbps + "kbps format=" + bitrateKbps + "kbps required=" + requiredKbps + "kbps buffer=" + bufferAheadMs + "ms; keep player alive for adaptive selection")\n            return Decision(false, bitrateKbps, throughputKbps, bufferAheadMs, "throughput-below-format-bitrate")\n        }\n\n        return Decision(true, bitrateKbps, throughputKbps, bufferAheadMs, "recovery-allowed")\n    }\n}
+package com.audiomix.iptv
+
+import android.util.Log
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
+import kotlin.math.max
+
+class AdaptiveNetworkController(
+    private val bandwidthMeter: DefaultBandwidthMeter
+) {
+    companion object {
+        private const val TAG = "AudioMix-Adaptive"
+        private const val SAFETY_FACTOR = 1.15
+        private const val UNKNOWN = -1L
+    }
+
+    data class Decision(
+        val allowRecovery: Boolean,
+        val bitrateKbps: Long,
+        val throughputKbps: Long,
+        val bufferAheadMs: Long,
+        val reason: String
+    )
+
+    fun evaluate(player: Player, isVideo: Boolean, bufferAheadMs: Long): Decision {
+        val format = if (isVideo) player.videoFormat else player.audioFormat
+        val bitrateKbps = format?.bitrate?.takeIf { it > 0 }?.div(1000L) ?: UNKNOWN
+        val throughputKbps = bandwidthMeter.bitrateEstimate
+            .takeIf { it > 0L }
+            ?.div(1000L) ?: UNKNOWN
+
+        if (bitrateKbps == UNKNOWN || throughputKbps == UNKNOWN) {
+            return Decision(true, bitrateKbps, throughputKbps, bufferAheadMs, "insufficient-metrics")
+        }
+
+        val requiredKbps = max(1L, (bitrateKbps * SAFETY_FACTOR).toLong())
+        val underspeed = throughputKbps < requiredKbps
+
+        if (isVideo && underspeed && bufferAheadMs > 0L) {
+            Log.w(TAG, "VIDEO network underspeed: throughput=" + throughputKbps + "kbps format=" + bitrateKbps + "kbps required=" + requiredKbps + "kbps buffer=" + bufferAheadMs + "ms; keep player alive for adaptive selection")
+            return Decision(false, bitrateKbps, throughputKbps, bufferAheadMs, "throughput-below-format-bitrate")
+        }
+
+        return Decision(true, bitrateKbps, throughputKbps, bufferAheadMs, "recovery-allowed")
+    }
+}
