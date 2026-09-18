@@ -29,6 +29,8 @@ class DualStreamPlayer(
 ) {
     private val bufferManager = BufferManager(context)
     private val bandwidthMeter = DefaultBandwidthMeter.Builder(context).build()
+    private val videoTransferListener = PlayerTransferListener("VIDEO", bandwidthMeter)
+    private val audioTransferListener = PlayerTransferListener("AUDIO", bandwidthMeter)
     private val adaptiveNetwork = AdaptiveNetworkController()
     private val networkContention = NetworkContentionController()
     private var audioNetworkYielding = false
@@ -240,30 +242,13 @@ class DualStreamPlayer(
             .setConnectTimeoutMs(15_000)
             .setReadTimeoutMs(20_000)
             .setAllowCrossProtocolRedirects(true)
-            .setTransferListener(bandwidthMeter)
+            .setTransferListener(if (isAudio) audioTransferListener else videoTransferListener)
 
-        // Do not block a DataSource.read() with a monitor. That keeps a network
-        // loader thread parked while the underlying HTTP call remains open and
-        // can turn a temporary contention event into a socket stall.
-        // ExoPlayer itself owns loading/pausing; contention control below only
-        // yields the secondary player.
-        val dataSourceFactory = DefaultDataSource.Factory(context, httpFactory)
+        val dataSourceFactory: DataSource.Factory =
+            DefaultDataSource.Factory(context, httpFactory)
 
-        val retryPolicy = object : DefaultLoadErrorHandlingPolicy() {
-            override fun getRetryDelayMsFor(
-                loadErrorInfo: androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy.LoadErrorInfo
-            ): Long {
-                return when (loadErrorInfo.errorCount) {
-                    1 -> 250L
-                    2 -> 750L
-                    3 -> 1_500L
-                    else -> 3_000L
-                }
-            }
-        }
-
-        return DefaultMediaSourceFactory(dataSourceFactory)
-            .setLoadErrorHandlingPolicy(retryPolicy)
+        return DefaultMediaSourceFactory(context)
+            .setDataSourceFactory(dataSourceFactory)
     }
 
     private fun newRenderersFactory() =
