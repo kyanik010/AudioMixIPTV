@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -17,6 +18,7 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import org.json.JSONArray
 import java.net.HttpURLConnection
@@ -28,7 +30,8 @@ import kotlin.math.abs
 data class Channel(
     val id: String,
     val name: String,
-    val streamUrl: String
+    val streamUrl: String,
+    val streamUrls: List<String> = listOf(streamUrl)
 )
 
 data class XtreamCredentials(
@@ -528,8 +531,8 @@ class MainActivity : AppCompatActivity() {
         dualPlayer =
             DualStreamPlayer(
                 this,
-                video.streamUrl,
-                audio.streamUrl
+                video.streamUrls,
+                audio.streamUrls
             )
 
         showPlayerScreen()
@@ -796,29 +799,22 @@ object XtreamApi {
                 continue
             }
 
-            val direct =
-                item.optString(
-                    "stream_url"
-                )
-
             val candidates =
-                ArrayList<String>()
+                LinkedHashSet<String>()
 
-            if (
-                direct.isNotBlank()
-            ) {
-                candidates.add(
-                    direct
-                )
+            val directSource =
+                item.optString("direct_source").trim()
+            val streamUrl =
+                item.optString("stream_url").trim()
+
+            if (directSource.isNotBlank()) {
+                candidates.add(directSource)
+            }
+            if (streamUrl.isNotBlank()) {
+                candidates.add(streamUrl)
             }
 
-            candidates.add(
-                "${credentials.server}/live/" +
-                        "${credentials.username}/" +
-                        "${credentials.password}/" +
-                        "$id.m3u8"
-            )
-
+            // TS first: this is the most common live endpoint on Xtream panels.
             candidates.add(
                 "${credentials.server}/live/" +
                         "${credentials.username}/" +
@@ -826,12 +822,31 @@ object XtreamApi {
                         "$id.ts"
             )
 
+            // HLS fallback.
+            candidates.add(
+                "${credentials.server}/live/" +
+                        "${credentials.username}/" +
+                        "${credentials.password}/" +
+                        "$id.m3u8"
+            )
+
+            // Some panels accept the extensionless endpoint.
+            candidates.add(
+                "${credentials.server}/live/" +
+                        "${credentials.username}/" +
+                        "${credentials.password}/" +
+                        id
+            )
+
+            val urls = candidates.filter { it.isNotBlank() }
+            if (urls.isEmpty()) continue
+
             result.add(
                 Channel(
                     id = id,
                     name = name,
-                    streamUrl =
-                        candidates.first()
+                    streamUrl = urls.first(),
+                    streamUrls = urls
                 )
             )
         }
@@ -890,372 +905,279 @@ object XtreamApi {
 
 class DualStreamPlayer(
     private val context: Context,
-    private val videoUrl: String,
-    audioUrl: String
+    private val videoUrls: List<String>,
+    audioUrls: List<String>
 ) {
 
     private val videoPlayer: ExoPlayer
     private val audioPlayer: ExoPlayer
-    private var currentAudioUrl: String? = audioUrl
+    private val audioCandidates = audioUrls.distinct().filter { it.isNotBlank() }
+    private var audioCandidateIndex = 0
+    private var currentAudioUrl: String? = null
+    private var manualDelayMs = 0L
+    private val handler = Handler(Looper.getMainLooper())
+    private var released = false
+    private var audioErrorShown = false
 
-    private var manualDelayMs =
-        0L
-
-    private val handler =
-        Handler(
-            Looper.getMainLooper()
-        )
-
-    private var released =
-        false
-
-    private val syncRunnable =
-        object : Runnable {
-
-            override fun run() {
-
-                if (!released) {
-
-                    synchronize()
-
-                    handler.postDelayed(
-                        this,
-                        500
-                    )
-                }
+    private val syncRunnable = object : Runnable {
+        override fun run() {
+            if (!released) {
+                synchronize()
+                handler.postDelayed(this, 500)
             }
         }
+    }
 
     init {
+        require(videoUrls.isNotEmpty()) { "No video URL" }
+        require(audioCandidates.isNotEmpty()) { "No audio URL" }
 
-        videoPlayer =
-            ExoPlayer.Builder(
-                context
-            ).build()
+        val audioSelector = DefaultTrackSelector(context)
+        audioSelector.setParameters(
+            audioSelector.buildUponParameters()
+                .setConstrainAudioChannelCountToDeviceCapabilities(false)
+                .setAudioOffloadPreferences(
+                    androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.Builder()
+                        .setAudioOffloadMode(
+                            androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED
+                        )
+                        .build()
+                )
+                .build()
+        )
 
-        audioPlayer =
-            ExoPlayer.Builder(
-                context
-            ).build()
+        videoPlayer = ExoPlayer.Builder(context).build()
+        audioPlayer = ExoPlayer.Builder(context)
+            .setTrackSelector(audioSelector)
+            .build()
 
         configurePlayers()
     }
 
     private fun configurePlayers() {
-
-        val videoParameters =
-            videoPlayer
-                .trackSelectionParameters
-                .buildUpon()
-                .setTrackTypeDisabled(
-                    C.TRACK_TYPE_AUDIO,
-                    true
-                )
-                .build()
-
         videoPlayer.trackSelectionParameters =
-            videoParameters
-
-        val audioParameters =
-            audioPlayer
-                .trackSelectionParameters
+            videoPlayer.trackSelectionParameters
                 .buildUpon()
-                .setTrackTypeDisabled(
-                    C.TRACK_TYPE_VIDEO,
-                    true
-                )
+                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
                 .build()
 
         audioPlayer.trackSelectionParameters =
-            audioParameters
+            audioPlayer.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
+                .build()
 
-        videoPlayer.setAudioAttributes(
-            androidx.media3.common.AudioAttributes
-                .Builder()
-                .setContentType(
-                    C.AUDIO_CONTENT_TYPE_MOVIE
-                )
-                .setUsage(
-                    C.USAGE_MEDIA
-                )
-                .build(),
-            false
-        )
+        val mediaAttributes =
+            androidx.media3.common.AudioAttributes.Builder()
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .setUsage(C.USAGE_MEDIA)
+                .build()
 
-        audioPlayer.setAudioAttributes(
-            androidx.media3.common.AudioAttributes
-                .Builder()
-                .setContentType(
-                    C.AUDIO_CONTENT_TYPE_MUSIC
-                )
-                .setUsage(
-                    C.USAGE_MEDIA
-                )
-                .build(),
-            false
-        )
+        // Do not let either player request focus: both belong to this app and must coexist.
+        videoPlayer.setAudioAttributes(mediaAttributes, false)
+        audioPlayer.setAudioAttributes(mediaAttributes, false)
 
+        videoPlayer.volume = 0f
         audioPlayer.volume = 1f
         audioPlayer.setSkipSilenceEnabled(false)
 
-        videoPlayer.setMediaItem(
-            createMediaItem(
-                videoUrl
-            )
-        )
-
-        audioPlayer.setMediaItem(
-            createMediaItem(
-                currentAudioUrl!!
-            )
-        )
-
+        videoPlayer.setMediaItem(createMediaItem(videoUrls.first()))
         videoPlayer.prepare()
-        audioPlayer.prepare()
+        videoPlayer.playWhenReady = true
 
-        videoPlayer.playWhenReady =
-            true
+        audioPlayer.addListener(object : androidx.media3.common.Player.Listener {
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                val audioTracks = tracks.groups.filter {
+                    it.type == C.TRACK_TYPE_AUDIO
+                }
+                Log.d(
+                    TAG,
+                    "Audio groups=${audioTracks.size}, selected=" +
+                            audioTracks.sumOf { group ->
+                                (0 until group.length).count { group.isTrackSelected(it) }
+                            } +
+                            ", url=${currentAudioUrl}"
+                )
+            }
 
-        audioPlayer.playWhenReady =
-            true
+            override fun onPlaybackStateChanged(state: Int) {
+                Log.d(TAG, "Audio state=$state url=${currentAudioUrl}")
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                Log.d(TAG, "Audio isPlaying=$isPlaying url=${currentAudioUrl}")
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                Log.e(
+                    TAG,
+                    "Audio playback error url=${currentAudioUrl} code=${error.errorCodeName}",
+                    error
+                )
+                if (!released) {
+                    handler.post { tryNextAudioCandidate(error.errorCodeName) }
+                }
+            }
+        })
+
+        playAudioCandidate(0)
     }
 
-    private fun createMediaItem(
-        url: String
-    ): MediaItem {
-
-        val builder =
-            MediaItem.Builder()
-                .setUri(url)
+    private fun createMediaItem(url: String): MediaItem {
+        val builder = MediaItem.Builder().setUri(url)
+        val clean = url.substringBefore('?').lowercase()
 
         when {
-
-            url.contains(
-                ".m3u8",
-                ignoreCase = true
-            ) -> {
-
-                builder.setMimeType(
-                    MimeTypes.APPLICATION_M3U8
-                )
-            }
-
-            url.contains(
-                ".ts",
-                ignoreCase = true
-            ) -> {
-
-                builder.setMimeType(
-                    MimeTypes.VIDEO_MP2T
-                )
-            }
+            clean.endsWith(".m3u8") ->
+                builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+            clean.endsWith(".ts") ->
+                builder.setMimeType(MimeTypes.VIDEO_MP2T)
+            clean.endsWith(".aac") ->
+                builder.setMimeType(MimeTypes.AUDIO_AAC)
+            clean.endsWith(".mp3") ->
+                builder.setMimeType(MimeTypes.AUDIO_MPEG)
         }
 
         return builder.build()
     }
 
-    fun attachVideoView(
-        playerView: PlayerView
-    ) {
+    private fun playAudioCandidate(index: Int) {
+        if (released || index !in audioCandidates.indices) return
 
-        playerView.player =
-            videoPlayer
+        audioCandidateIndex = index
+        val url = audioCandidates[index]
+        currentAudioUrl = url
+
+        Log.d(TAG, "Trying audio candidate #$index: $url")
+
+        audioPlayer.stop()
+        audioPlayer.clearMediaItems()
+        audioPlayer.setMediaItem(createMediaItem(url))
+        audioPlayer.volume = 1f
+        audioPlayer.setSkipSilenceEnabled(false)
+        audioPlayer.prepare()
+        audioPlayer.playWhenReady = true
+        audioPlayer.play()
+    }
+
+    private fun tryNextAudioCandidate(reason: String) {
+        if (released) return
+
+        val next = audioCandidateIndex + 1
+        if (next < audioCandidates.size) {
+            Log.w(TAG, "Audio candidate failed ($reason); trying #$next")
+            playAudioCandidate(next)
+            return
+        }
+
+        if (!audioErrorShown) {
+            audioErrorShown = true
+            Toast.makeText(
+                context,
+                "تعذر تشغيل مصدر الصوت. جرّب قناة صوت أخرى.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    fun attachVideoView(playerView: PlayerView) {
+        playerView.player = videoPlayer
     }
 
     fun play() {
-
-        videoPlayer.play()
+        videoPlayer.volume = 0f
         audioPlayer.volume = 1f
+        videoPlayer.play()
         audioPlayer.play()
-
-        handler.post(
-            syncRunnable
-        )
+        handler.post(syncRunnable)
     }
 
-    fun changeDelay(
-        amountMs: Long
-    ) {
-
-        manualDelayMs =
-            (
-                manualDelayMs +
-                        amountMs
-            ).coerceIn(
-                -5_000L,
-                5_000L
-            )
-
+    fun changeDelay(amountMs: Long) {
+        manualDelayMs = (manualDelayMs + amountMs).coerceIn(-5_000L, 5_000L)
         synchronize()
     }
 
     fun getDelayText(): String {
-
-        val seconds =
-            manualDelayMs / 1000.0
-
-        return String.format(
-            "%.1fs",
-            seconds
-        )
+        return String.format("%.1fs", manualDelayMs / 1000.0)
     }
 
     fun forceSync() {
-
-        synchronize(
-            force = true
-        )
+        synchronize(force = true)
     }
 
     fun switchAudio(newAudioUrl: String): Boolean {
-
         if (released || newAudioUrl.isBlank()) return false
-        if (newAudioUrl == currentAudioUrl) return true
+
+        val existingIndex = audioCandidates.indexOf(newAudioUrl)
+        if (existingIndex >= 0) {
+            playAudioCandidate(existingIndex)
+            handler.postDelayed({ if (!released) synchronize(force = true) }, 750)
+            return true
+        }
 
         return try {
             audioPlayer.stop()
             audioPlayer.clearMediaItems()
+            currentAudioUrl = newAudioUrl
             audioPlayer.setMediaItem(createMediaItem(newAudioUrl))
-            audioPlayer.prepare()
             audioPlayer.volume = 1f
             audioPlayer.setSkipSilenceEnabled(false)
+            audioPlayer.prepare()
             audioPlayer.playWhenReady = true
-            currentAudioUrl = newAudioUrl
-            handler.postDelayed({
-                if (!released) synchronize(force = true)
-            }, 750)
+            audioPlayer.play()
+            handler.postDelayed({ if (!released) synchronize(force = true) }, 750)
             true
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "switchAudio failed", e)
             false
         }
     }
 
-    private fun synchronize(
-        force: Boolean = false
-    ) {
-
+    private fun synchronize(force: Boolean = false) {
         if (released) return
 
-        val videoOffset =
-            videoPlayer.currentLiveOffset
+        val videoOffset = videoPlayer.currentLiveOffset
+        val audioOffset = audioPlayer.currentLiveOffset
 
-        val audioOffset =
-            audioPlayer.currentLiveOffset
-
-        if (
-            videoOffset != C.TIME_UNSET &&
-            audioOffset != C.TIME_UNSET
-        ) {
-
-            val desiredAudioOffset =
-                videoOffset +
-                        manualDelayMs
-
-            val difference =
-                audioOffset -
-                        desiredAudioOffset
-
-            correctAudio(
-                difference,
-                force
-            )
-
+        if (videoOffset != C.TIME_UNSET && audioOffset != C.TIME_UNSET) {
+            val desiredAudioOffset = videoOffset + manualDelayMs
+            val difference = audioOffset - desiredAudioOffset
+            correctAudio(difference, force)
         } else {
-
-            val videoPosition =
-                videoPlayer.currentPosition
-
-            val audioPosition =
-                audioPlayer.currentPosition
-
-            val difference =
-                audioPosition -
-                        videoPosition -
-                        manualDelayMs
-
-            correctAudio(
-                difference,
-                force
-            )
+            val videoPosition = videoPlayer.currentPosition
+            val audioPosition = audioPlayer.currentPosition
+            val difference = audioPosition - videoPosition - manualDelayMs
+            correctAudio(difference, force)
         }
     }
 
-    private fun correctAudio(
-        difference: Long,
-        force: Boolean
-    ) {
+    private fun correctAudio(difference: Long, force: Boolean) {
+        val absolute = abs(difference)
 
-        val absolute =
-            abs(difference)
-
-        if (
-            force ||
-            absolute > 1500L
-        ) {
-
-            val target =
-                audioPlayer.currentPosition -
-                        difference
-
-            if (
-                target >= 0
-            ) {
-
-                audioPlayer.seekTo(
-                    target
-                )
-            }
-
-            audioPlayer.setPlaybackParameters(
-                PlaybackParameters(
-                    1f
-                )
-            )
-
-        } else if (
-            absolute > 250L
-        ) {
-
-            val speed =
-                if (
-                    difference > 0
-                ) {
-                    0.98f
-                } else {
-                    1.02f
-                }
-
-            audioPlayer.setPlaybackParameters(
-                PlaybackParameters(
-                    speed
-                )
-            )
-
+        if (force || absolute > 1500L) {
+            val target = audioPlayer.currentPosition - difference
+            if (target >= 0L) audioPlayer.seekTo(target)
+            audioPlayer.setPlaybackParameters(PlaybackParameters(1f))
+        } else if (absolute > 250L) {
+            val speed = if (difference > 0) 0.98f else 1.02f
+            audioPlayer.setPlaybackParameters(PlaybackParameters(speed))
         } else {
-
-            audioPlayer.setPlaybackParameters(
-                PlaybackParameters(
-                    1f
-                )
-            )
+            audioPlayer.setPlaybackParameters(PlaybackParameters(1f))
         }
     }
 
     fun release() {
-
         if (released) return
-
         released = true
-
-        handler.removeCallbacksAndMessages(
-            null
-        )
-
+        handler.removeCallbacksAndMessages(null)
         videoPlayer.stop()
         audioPlayer.stop()
-
         videoPlayer.release()
         audioPlayer.release()
+    }
+
+    companion object {
+        private const val TAG = "AudioMix-DualPlayer"
     }
 }
 
