@@ -168,7 +168,6 @@ class DualStreamPlayer(
                 audioNetworkYielding = false
                 audioPlayer.playWhenReady = true
                 audioPlayer.play()
-                audioPlayer.play()
                 Log.i(
                     TAG,
                     "NETWORK_PROTECTION yieldAudio=false videoBufferMs=${contention.videoBufferMs}"
