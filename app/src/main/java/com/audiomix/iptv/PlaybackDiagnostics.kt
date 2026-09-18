@@ -96,6 +96,34 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
         }
     }
 
+    override fun onDecoderCountersUpdated(
+        eventTime: AnalyticsListener.EventTime,
+        decoderCounters: androidx.media3.decoder.DecoderCounters
+    ) {
+        decoderCounters.ensureUpdated()
+        Log.d(
+            TAG,
+            "$tag decoder rendered=${decoderCounters.renderedOutputBufferCount} " +
+                "skipped=${decoderCounters.skippedOutputBufferCount} " +
+                "dropped=${decoderCounters.droppedBufferCount} " +
+                "maxConsecutiveDropped=${decoderCounters.maxConsecutiveDroppedBufferCount} " +
+                "input=${decoderCounters.inputBufferCount}"
+        )
+    }
+
+    override fun onAudioUnderrun(
+        eventTime: AnalyticsListener.EventTime,
+        bufferSize: Int,
+        bufferSizeMs: Long,
+        elapsedSinceLastFeedMs: Long
+    ) {
+        Log.w(
+            TAG,
+            "$tag AUDIO_UNDERRUN bufferSize=$bufferSize bufferMs=$bufferSizeMs " +
+                "elapsedSinceLastFeedMs=$elapsedSinceLastFeedMs"
+        )
+    }
+
     override fun onDroppedVideoFrames(
         eventTime: AnalyticsListener.EventTime,
         droppedFrames: Int,
