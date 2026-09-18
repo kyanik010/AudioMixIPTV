@@ -261,6 +261,11 @@ class DualStreamPlayer(
 
         return DefaultMediaSourceFactory(context)
             .setDataSourceFactory(dataSourceFactory)
+            // Critical for multiplexed progressive IPTV streams: only load the
+            // track selected by this player (video for the video player,
+            // audio for the audio player), instead of pulling every track's
+            // samples from the same TS stream.
+            .setLoadOnlySelectedTracks(isAudio)
     }
 
     private fun newRenderersFactory() =
