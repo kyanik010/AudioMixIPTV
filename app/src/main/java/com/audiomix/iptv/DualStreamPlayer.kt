@@ -29,6 +29,8 @@ class DualStreamPlayer(
     private val bufferManager = BufferManager(context)
     private val bandwidthMeter = DefaultBandwidthMeter.Builder(context).build()
     private val adaptiveNetwork = AdaptiveNetworkController()
+    private val networkContention = NetworkContentionController()
+    private var audioNetworkYielding = false
     private val recovery = RecoverySystem()
     private val handler = Handler(Looper.getMainLooper())
 
@@ -93,7 +95,36 @@ class DualStreamPlayer(
             }
 
             val audioAheadMs = (audioPlayer.bufferedPosition - audioPlayer.currentPosition).coerceAtLeast(0L)
-            if (audioPlayer.playbackState == Player.STATE_BUFFERING &&
+
+            val contention = networkContention.update(
+                videoPlayer = videoPlayer,
+                audioPlayer = audioPlayer,
+                videoBufferMs = videoAheadMs,
+                audioBufferMs = audioAheadMs,
+                videoNetwork = videoDiagnostics.networkSnapshot(),
+                audioNetwork = audioDiagnostics.networkSnapshot()
+            )
+            if (contention.protectingVideo && !audioNetworkYielding && audioPlayer.isPlaying) {
+                audioNetworkYielding = true
+                audioPlayer.playWhenReady = false
+                Log.w(
+                    TAG,
+                    "NETWORK_PROTECTION yieldAudio=true reason=${contention.reason} " +
+                        "videoBufferMs=${contention.videoBufferMs} videoBitrateKbps=${contention.videoBitrateKbps} " +
+                        "videoThroughputKbps=${contention.videoThroughputKbps}"
+                )
+            } else if (!contention.protectingVideo && audioNetworkYielding) {
+                audioNetworkYielding = false
+                audioPlayer.playWhenReady = true
+                audioPlayer.play()
+                Log.i(
+                    TAG,
+                    "NETWORK_PROTECTION yieldAudio=false videoBufferMs=${contention.videoBufferMs}"
+                )
+            }
+            if (audioNetworkYielding) {
+                audioBufferingSince = 0L
+            } else if (audioPlayer.playbackState == Player.STATE_BUFFERING &&
                 audioPlayer.isLoading &&
                 audioAheadMs <= 1_000L
             ) {
@@ -366,6 +397,7 @@ class DualStreamPlayer(
         if (released) return
         videoPlayer.volume = 0f
         audioPlayer.volume = 1f
+        audioNetworkYielding = false
         videoPlayer.playWhenReady = true
         audioPlayer.playWhenReady = true
         videoPlayer.play()
