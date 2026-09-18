@@ -46,7 +46,7 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
                 Log.e(TAG, "$tag error=${error.errorCodeName} message=${error.message}", error)
             }
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                Log.d(TAG, "$tag video=${videoSize.width}x${videoSize.height} fps=${videoSize.pixelWidthHeightRatio}")
+                Log.d(TAG, "$tag video=${videoSize.width}x${videoSize.height} pixelRatio=${videoSize.pixelWidthHeightRatio}")
             }
             override fun onRenderedFirstFrame() {
                 if (firstFrameAtMs == 0L) firstFrameAtMs = SystemClock.elapsedRealtime()
