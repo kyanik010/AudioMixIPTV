@@ -44,7 +44,8 @@ class DualStreamPlayer(
     private var currentAudioUrl: String? = null
 
     private val videoPlayer: ExoPlayer
-    private val audioPlayer: ExoPlayer
+    private var audioPlayer: ExoPlayer
+    private var standbyAudioPlayer: ExoPlayer? = null
     private val syncEngine: SyncEngine
     private val videoDiagnostics = PlaybackDiagnostics("VIDEO")
     private val audioDiagnostics = PlaybackDiagnostics("AUDIO")
@@ -407,16 +408,79 @@ class DualStreamPlayer(
         recovery.resetAllFor("audio")
 
         return try {
-            audioPlayer.stop()
-            audioPlayer.clearMediaItems()
-            prepareAudio(audioUrls.first())
-            audioPlayer.play()
-            handler.postDelayed({
-                if (!released && audioGeneration == generation) syncEngine.forceSync()
-            }, 1_500L)
+            val oldPlayer = audioPlayer
+            standbyAudioPlayer?.release()
+            val nextPlayer = buildAudioPlayer()
+            standbyAudioPlayer = nextPlayer
+
+            var handedOff = false
+            fun handoff() {
+                if (released || handedOff || audioGeneration != generation || standbyAudioPlayer !== nextPlayer) return
+                handedOff = true
+
+                nextPlayer.volume = 0f
+                nextPlayer.playWhenReady = true
+                nextPlayer.play()
+
+                audioPlayer = nextPlayer
+                standbyAudioPlayer = null
+                syncEngine.switchAudioPlayer(nextPlayer)
+
+                val startVolume = oldPlayer.volume
+                val steps = 6
+                for (i in 1..steps) {
+                    handler.postDelayed({
+                        if (!released) {
+                            nextPlayer.volume = (i.toFloat() / steps).coerceIn(0f, 1f)
+                            oldPlayer.volume = (startVolume * (1f - i.toFloat() / steps)).coerceAtLeast(0f)
+                        }
+                    }, i * 50L)
+                }
+
+                handler.postDelayed({
+                    oldPlayer.stop()
+                    oldPlayer.release()
+                }, (steps * 50L) + 150L)
+
+                handler.postDelayed({
+                    if (!released && audioGeneration == generation) syncEngine.forceSync()
+                }, 900L)
+
+                Log.d(TAG, "Audio source handoff completed generation=$generation")
+            }
+
+            nextPlayer.addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(state: Int) {
+                    if (state == Player.STATE_READY) {
+                        val ahead = (nextPlayer.bufferedPosition - nextPlayer.currentPosition).coerceAtLeast(0L)
+                        if (ahead >= 750L) {
+                            handoff()
+                        } else {
+                            handler.postDelayed({ handoff() }, 500L)
+                        }
+                    }
+                }
+
+                override fun onPlayerError(error: PlaybackException) {
+                    if (released || audioGeneration != generation) return
+                    Log.e(TAG, "Standby audio failed: " + error.errorCodeName, error)
+                    if (standbyAudioPlayer === nextPlayer) {
+                        standbyAudioPlayer = null
+                    }
+                    nextPlayer.release()
+                    Toast.makeText(context, "تعذر تشغيل مصدر الصوت. جرب قناة صوت أخرى.", Toast.LENGTH_LONG).show()
+                }
+            })
+
+            currentAudioUrl = urls.first()
+            nextPlayer.setMediaItem(createMediaItem(urls.first()))
+            nextPlayer.prepare()
+            nextPlayer.playWhenReady = true
+
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Audio switch failed", e)
+            Log.e(TAG, "Audio seamless switch failed", e)
+            standbyAudioPlayer = null
             false
         }
     }
@@ -466,8 +530,11 @@ class DualStreamPlayer(
         audioDiagnostics.release()
         videoPlayer.stop()
         audioPlayer.stop()
+        standbyAudioPlayer?.stop()
         videoPlayer.release()
         audioPlayer.release()
+        standbyAudioPlayer?.release()
+        standbyAudioPlayer = null
     }
 
     companion object {
