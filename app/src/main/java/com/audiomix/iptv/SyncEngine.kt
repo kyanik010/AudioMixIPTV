@@ -11,7 +11,7 @@ import kotlin.math.abs
 
 class SyncEngine(
     private val videoPlayer: ExoPlayer,
-    private val audioPlayer: ExoPlayer
+    private var audioPlayer: ExoPlayer
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private var released = false
@@ -54,6 +54,16 @@ class SyncEngine(
 
     fun forceSync() { synchronize(true) }
 
+    fun switchAudioPlayer(newPlayer: ExoPlayer) {
+        if (released) return
+        if (audioPlayer === newPlayer) return
+        if (audioPlayer.playbackParameters.speed != 1f) audioPlayer.setPlaybackSpeed(1f)
+        audioPlayer = newPlayer
+        lastHardCorrectionAt = 0L
+        speedCorrectionUntil = 0L
+        synchronize(true)
+    }
+
     private fun synchronize(force: Boolean) {
         if (released || !videoPlayer.isPlaying || !audioPlayer.isPlaying) return
         if (videoPlayer.playbackState != Player.STATE_READY ||
@@ -82,7 +92,7 @@ class SyncEngine(
         val hardThreshold = if (force) FORCE_THRESHOLD_MS else HARD_THRESHOLD_MS
         if (absolute >= hardThreshold && now - lastHardCorrectionAt >= HARD_COOLDOWN_MS) {
             val target = (audioPlayer.currentPosition + drift).coerceAtLeast(0L)
-            Log.d(TAG, "hard-sync drift=\${drift}ms target=\${target} delay=\${manualDelayMs}ms")
+            Log.d(TAG, "hard-sync drift=${drift}ms target=${target} delay=${manualDelayMs}ms")
             audioPlayer.setPlaybackSpeed(1f)
             audioPlayer.seekTo(target)
             lastHardCorrectionAt = now
@@ -94,7 +104,7 @@ class SyncEngine(
             val speed = if (drift > 0L) MAX_SPEED else MIN_SPEED
             audioPlayer.setPlaybackSpeed(speed)
             speedCorrectionUntil = now + SPEED_WINDOW_MS
-            Log.d(TAG, "soft-sync drift=\${drift}ms speed=\${speed}")
+            Log.d(TAG, "soft-sync drift=${drift}ms speed=${speed}")
         }
     }
 
