@@ -42,6 +42,8 @@ class DualStreamPlayer(
     private var audioGeneration = 0L
     private var audioErrorShown = false
     private var videoBufferingSince = 0L
+    private var playbackSessionActive = false
+    private var videoUserPaused = false
     private var audioBufferingSince = 0L
     private var videoUrls = initialVideoUrls.distinct().filter { it.isNotBlank() }
     private var audioUrls = initialAudioUrls.distinct().filter { it.isNotBlank() }
@@ -303,6 +305,15 @@ class DualStreamPlayer(
                 if (state == Player.STATE_READY) {
                     recovery.resetAllFor("video")
                     videoBufferingSince = 0L
+
+                    // A live stream can return to READY after a network stall while
+                    // playWhenReady has been cleared by an internal recovery path.
+                    // Resume automatically unless the user explicitly paused it.
+                    if (playbackSessionActive && !videoUserPaused && !videoPlayer.isPlaying) {
+                        videoPlayer.playWhenReady = true
+                        videoPlayer.play()
+                        Log.i(TAG, "VIDEO auto-resume after READY")
+                    }
                 }
                 if (state != Player.STATE_BUFFERING) videoBufferingSince = 0L
             }
@@ -310,6 +321,28 @@ class DualStreamPlayer(
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 Log.d(TAG, "VIDEO playing=" + isPlaying +
                     " buffer=" + videoPlayer.bufferedPosition)
+            }
+
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                Log.d(
+                    TAG,
+                    "VIDEO playWhenReady=" + playWhenReady +
+                        " reason=" + reason +
+                        " sessionActive=" + playbackSessionActive +
+                        " userPaused=" + videoUserPaused
+                )
+
+                if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) {
+                    videoUserPaused = !playWhenReady
+                }
+
+                if (
+                    playbackSessionActive &&
+                    !videoUserPaused &&
+                    playWhenReady
+                ) {
+                    videoPlayer.play()
+                }
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -414,6 +447,8 @@ class DualStreamPlayer(
 
     fun play() {
         if (released) return
+        playbackSessionActive = true
+        videoUserPaused = false
         videoNetworkGate.setBlocked(false)
         audioNetworkGate.setBlocked(false)
         videoPlayer.volume = 0f
@@ -586,6 +621,7 @@ class DualStreamPlayer(
     fun release() {
         if (released) return
         released = true
+        playbackSessionActive = false
         audioNetworkGate.setBlocked(false)
         videoNetworkGate.setBlocked(false)
         handler.removeCallbacksAndMessages(null)
