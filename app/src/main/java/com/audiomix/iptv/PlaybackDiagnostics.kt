@@ -10,7 +10,6 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.LoadEventInfo
 import androidx.media3.exoplayer.source.MediaLoadData
-import java.util.concurrent.atomic.AtomicLong
 
 class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
     private var player: ExoPlayer? = null
@@ -18,8 +17,9 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
     private var lastLoading = false
     private var bufferingSinceMs = 0L
     private var totalBufferingMs = 0L
-    private val bytesLoaded = AtomicLong(0L)
-    private var lastReportedBytes = 0L
+    private var droppedFramesTotal = 0L
+    private var firstFrameAtMs = 0L
+    private val networkMetrics = NetworkMetrics()
     private val handler = Handler(Looper.getMainLooper())
     private var periodic = false
 
@@ -36,19 +36,22 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
                     totalBufferingMs += now - bufferingSinceMs
                     bufferingSinceMs = 0L
                 }
-                logSnapshot("state=\${stateName(playbackState)}")
+                logSnapshot("state=${stateName(playbackState)}")
             }
             override fun onIsLoadingChanged(isLoading: Boolean) {
                 lastLoading = isLoading
-                logSnapshot("loading=\${isLoading}")
+                logSnapshot("loading=$isLoading")
             }
             override fun onPlayerError(error: PlaybackException) {
-                Log.e(TAG, "\${tag} error=\${error.errorCodeName} message=\${error.message}", error)
+                Log.e(TAG, "$tag error=${error.errorCodeName} message=${error.message}", error)
             }
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                Log.d(TAG, "\${tag} video=\${videoSize.width}x\${videoSize.height} fps=\${videoSize.frameRate}")
+                Log.d(TAG, "$tag video=${videoSize.width}x${videoSize.height} fps=${videoSize.frameRate}")
             }
-            override fun onRenderedFirstFrame() { logSnapshot("first-frame") }
+            override fun onRenderedFirstFrame() {
+                if (firstFrameAtMs == 0L) firstFrameAtMs = SystemClock.elapsedRealtime()
+                logSnapshot("first-frame")
+            }
         })
         periodic = true
         handler.post(periodicLogger)
@@ -67,10 +70,10 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
         loadEventInfo: LoadEventInfo,
         mediaLoadData: MediaLoadData
     ) {
-        val total = bytesLoaded.addAndGet(loadEventInfo.bytesLoaded)
-        if (total - lastReportedBytes >= 5L * 1024L * 1024L) {
-            lastReportedBytes = total
-            logSnapshot("loadedBytes=\${total}")
+        networkMetrics.record(loadEventInfo)
+        val snapshot = networkMetrics.snapshot()
+        if (snapshot.loadCount == 1L || snapshot.loadCount % 5L == 0L) {
+            logSnapshot("network throughputKbps=${snapshot.lastThroughputKbps} avgKbps=${snapshot.averageThroughputKbps} peakKbps=${snapshot.peakThroughputKbps} loadMs=${snapshot.lastLoadDurationMs}")
         }
     }
 
@@ -79,16 +82,15 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
         droppedFrames: Int,
         elapsedMs: Long
     ) {
-        Log.w(TAG, "\${tag} droppedFrames=\${droppedFrames} elapsedMs=\${elapsedMs}")
+        droppedFramesTotal += droppedFrames.toLong()
+        Log.w(TAG, "$tag droppedFrames=$droppedFrames totalDropped=$droppedFramesTotal elapsedMs=$elapsedMs")
     }
 
     private fun logSnapshot(reason: String) {
         val p = player ?: return
         val bufferMs = (p.bufferedPosition - p.currentPosition).coerceAtLeast(0L)
-        Log.d(TAG, "\${tag} reason=\${reason} state=\${stateName(lastState)} " +
-            "playing=\${p.isPlaying} loading=\${lastLoading} position=\${p.currentPosition} " +
-            "buffered=\${p.bufferedPosition} bufferMs=\${bufferMs} liveOffset=\${p.currentLiveOffset} " +
-            "totalBufferingMs=\${totalBufferingMs} bytes=\${bytesLoaded.get()}")
+        val network = networkMetrics.snapshot()
+        Log.d(TAG, "$tag reason=$reason state=${stateName(lastState)} playing=${p.isPlaying} loading=$lastLoading position=${p.currentPosition} buffered=${p.bufferedPosition} bufferMs=$bufferMs liveOffset=${p.currentLiveOffset} totalBufferingMs=$totalBufferingMs bytes=${network.totalBytes} avgKbps=${network.averageThroughputKbps} lastKbps=${network.lastThroughputKbps} peakKbps=${network.peakThroughputKbps} loads=${network.loadCount} droppedFrames=$droppedFramesTotal firstFrameAt=$firstFrameAtMs")
     }
 
     private fun stateName(state: Int): String = when (state) {
@@ -99,6 +101,8 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
         else -> state.toString()
     }
 
+    fun networkSnapshot(): NetworkMetrics.Snapshot = networkMetrics.snapshot()
+
     fun release() {
         periodic = false
         handler.removeCallbacks(periodicLogger)
@@ -106,5 +110,7 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
         player = null
     }
 
-    companion object { private const val TAG = "AudioMix-Diagnostics" }
+    companion object {
+        private const val TAG = "AudioMix-Diagnostics"
+    }
 }
