@@ -147,6 +147,18 @@ class DualStreamPlayer(
 
             val audioAheadMs = (audioPlayer.bufferedPosition - audioPlayer.currentPosition).coerceAtLeast(0L)
 
+            val videoTransfer = videoTransferListener.snapshot()
+            val audioTransfer = audioTransferListener.snapshot()
+            Log.d(
+                TAG,
+                "TRANSFER videoKbps=" + videoTransfer.windowKbps +
+                    " videoTotalBytes=" + videoTransfer.totalBytes +
+                    " audioKbps=" + audioTransfer.windowKbps +
+                    " audioTotalBytes=" + audioTransfer.totalBytes +
+                    " videoBufferMs=" + videoAheadMs +
+                    " audioBufferMs=" + audioAheadMs
+            )
+
             val contention = networkContention.update(
                 videoPlayer = videoPlayer,
                 audioPlayer = audioPlayer,
