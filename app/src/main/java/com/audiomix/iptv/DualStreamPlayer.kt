@@ -39,6 +39,8 @@ class DualStreamPlayer(
     private val videoPlayer: ExoPlayer
     private val audioPlayer: ExoPlayer
     private val syncEngine: SyncEngine
+    private val videoDiagnostics = PlaybackDiagnostics("VIDEO")
+    private val audioDiagnostics = PlaybackDiagnostics("AUDIO")
 
     init {
         require(videoUrls.isNotEmpty()) { "No video URL" }
@@ -47,6 +49,9 @@ class DualStreamPlayer(
         videoPlayer = buildVideoPlayer()
         audioPlayer = buildAudioPlayer()
         syncEngine = SyncEngine(videoPlayer, audioPlayer)
+
+        videoDiagnostics.attach(videoPlayer)
+        audioDiagnostics.attach(audioPlayer)
 
         installListeners()
         prepareVideo(videoUrls.first())
@@ -84,7 +89,7 @@ class DualStreamPlayer(
 
     private fun buildVideoPlayer(): ExoPlayer {
         return ExoPlayer.Builder(context)
-            .setLoadControl(bufferManager.createLoadControl())
+            .setLoadControl(bufferManager.createVideoLoadControl())
             .setRenderersFactory(newRenderersFactory())
             .setMediaSourceFactory(mediaSourceFactory())
             .setWakeMode(C.WAKE_MODE_NETWORK)
@@ -115,7 +120,7 @@ class DualStreamPlayer(
 
         return ExoPlayer.Builder(context)
             .setTrackSelector(selector)
-            .setLoadControl(bufferManager.createLoadControl())
+            .setLoadControl(bufferManager.createAudioLoadControl())
             .setRenderersFactory(newRenderersFactory())
             .setMediaSourceFactory(mediaSourceFactory())
             .setWakeMode(C.WAKE_MODE_NETWORK)
@@ -352,6 +357,8 @@ class DualStreamPlayer(
         handler.removeCallbacksAndMessages(null)
         syncEngine.release()
         recovery.release()
+        videoDiagnostics.release()
+        audioDiagnostics.release()
         videoPlayer.stop()
         audioPlayer.stop()
         videoPlayer.release()
