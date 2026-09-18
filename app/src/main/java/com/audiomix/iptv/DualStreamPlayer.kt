@@ -76,20 +76,25 @@ class DualStreamPlayer(
                             "profile=${bufferManager.profileDescription()}"
                     )
                     val decision = adaptiveNetwork.evaluate(videoPlayer, true, videoAheadMs, videoDiagnostics.networkSnapshot())
-                    if (!decision.allowRecovery) {
-                        videoBufferingSince = now
-                        return
-                    }
-                    recovery.retry(
-                        "video-starvation",
-                        generation,
-                        { videoGeneration == generation }
-                    ) {
-                        if (!released && videoGeneration == generation) {
-                            videoPlayer.prepare()
-                            videoPlayer.playWhenReady = true
-                            videoPlayer.play()
+                    if (decision.allowRecovery) {
+                        recovery.retry(
+                            "video-starvation",
+                            generation,
+                            { videoGeneration == generation }
+                        ) {
+                            if (!released && videoGeneration == generation) {
+                                videoPlayer.prepare()
+                                videoPlayer.playWhenReady = true
+                                videoPlayer.play()
+                            }
                         }
+                    } else {
+                        Log.d(
+                            TAG,
+                            "VIDEO_STARVATION recovery deferred reason=" + decision.reason +
+                                " throughputKbps=" + decision.throughputKbps +
+                                " bitrateKbps=" + decision.bitrateKbps
+                        )
                     }
                     videoBufferingSince = now
                 }
