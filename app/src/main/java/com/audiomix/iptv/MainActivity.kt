@@ -600,7 +600,8 @@ class MainActivity : AppCompatActivity() {
             text = textValue
             textSize = size
             setTextColor(Color.GRAY)
-        
+        }
+
     private fun buildSelectionText(): String =
         "🎥 Video: " + (selectedVideo?.name ?: "غير محدد") +
         "\n🔊 Audio: " + (selectedAudio?.name ?: "غير محدد")
