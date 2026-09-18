@@ -992,8 +992,11 @@ class DualStreamPlayer(
                     C.USAGE_MEDIA
                 )
                 .build(),
-            true
+            false
         )
+
+        audioPlayer.volume = 1f
+        audioPlayer.setSkipSilenceEnabled(false)
 
         videoPlayer.setMediaItem(
             createMediaItem(
@@ -1062,6 +1065,7 @@ class DualStreamPlayer(
     fun play() {
 
         videoPlayer.play()
+        audioPlayer.volume = 1f
         audioPlayer.play()
 
         handler.post(
@@ -1113,6 +1117,8 @@ class DualStreamPlayer(
             audioPlayer.clearMediaItems()
             audioPlayer.setMediaItem(createMediaItem(newAudioUrl))
             audioPlayer.prepare()
+            audioPlayer.volume = 1f
+            audioPlayer.setSkipSilenceEnabled(false)
             audioPlayer.playWhenReady = true
             currentAudioUrl = newAudioUrl
             handler.postDelayed({
