@@ -23,8 +23,33 @@ class AdaptiveNetworkController(
     )
 
     fun evaluate(player: Player, isVideo: Boolean, bufferAheadMs: Long): Decision {
-        val format = if (isVideo) player.videoFormat else player.audioFormat
-        val bitrateKbps = format?.bitrate?.takeIf { it > 0 }?.div(1000L) ?: UNKNOWN
+        val bitrateKbps = if (isVideo) {
+            player.currentTracks.groups
+                .asSequence()
+                .filter { it.type == androidx.media3.common.C.TRACK_TYPE_VIDEO && it.isSelected }
+                .mapNotNull { group ->
+                    (0 until group.length)
+                        .asSequence()
+                        .filter { group.isTrackSelected(it) }
+                        .mapNotNull { group.getTrackFormat(it).bitrate.takeIf { b -> b > 0 } }
+                        .firstOrNull()
+                }
+                .firstOrNull()
+                ?.div(1000L) ?: UNKNOWN
+        } else {
+            player.currentTracks.groups
+                .asSequence()
+                .filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO && it.isSelected }
+                .mapNotNull { group ->
+                    (0 until group.length)
+                        .asSequence()
+                        .filter { group.isTrackSelected(it) }
+                        .mapNotNull { group.getTrackFormat(it).bitrate.takeIf { b -> b > 0 } }
+                        .firstOrNull()
+                }
+                .firstOrNull()
+                ?.div(1000L) ?: UNKNOWN
+        }
         val throughputKbps = bandwidthMeter.bitrateEstimate
             .takeIf { it > 0L }
             ?.div(1000L) ?: UNKNOWN
