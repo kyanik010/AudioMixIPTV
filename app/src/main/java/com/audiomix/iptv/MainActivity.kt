@@ -394,6 +394,176 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private fun showPlayerScreen() {
+        root = FrameLayout(this)
+        root.setBackgroundColor(Color.BLACK)
+
+        val videoView = PlayerView(this)
+        videoView.useController = true
+        videoView.setBackgroundColor(Color.BLACK)
+        root.addView(videoView, FrameLayout.LayoutParams(-1, -1))
+
+        val top = LinearLayout(this)
+        top.orientation = LinearLayout.HORIZONTAL
+        top.gravity = Gravity.CENTER_VERTICAL
+        top.setPadding(18, 12, 18, 12)
+        top.setBackgroundColor(Color.argb(175, 0, 0, 0))
+
+        val logo = TextView(this)
+        logo.text = "▶  AudioMix IPTV"
+        logo.textSize = 20f
+        logo.typeface = Typeface.DEFAULT_BOLD
+        logo.setTextColor(Color.WHITE)
+        top.addView(logo, LinearLayout.LayoutParams(0, 50, 1f))
+
+        val mix = Button(this)
+        mix.text = "AudioMix"
+        styleButton(mix, true)
+        top.addView(mix, LinearLayout.LayoutParams(112, 48))
+        root.addView(top, FrameLayout.LayoutParams(-1, 72).apply { gravity = Gravity.TOP })
+
+        val info = TextView(this)
+        info.text = "VIDEO: " + (selectedVideo?.name ?: "-") + "\nAUDIO: " + (selectedAudio?.name ?: "-")
+        info.textSize = 12f
+        info.setTextColor(Color.WHITE)
+        info.setPadding(12, 8, 12, 8)
+        info.background = roundedBackground(Color.argb(165, 0, 0, 0), 12f)
+        root.addView(info, FrameLayout.LayoutParams(-2, -2).apply {
+            gravity = Gravity.TOP or Gravity.END
+            topMargin = 78
+            rightMargin = 14
+        })
+
+        val controls = LinearLayout(this)
+        controls.orientation = LinearLayout.VERTICAL
+        controls.gravity = Gravity.CENTER
+        controls.setPadding(8, 8, 8, 12)
+        controls.setBackgroundColor(Color.argb(190, 0, 0, 0))
+
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.gravity = Gravity.CENTER
+
+        val minus = Button(this)
+        minus.text = "-0.5s"
+        styleButton(minus)
+        val delay = TextView(this)
+        delay.text = "0.0s"
+        delay.textSize = 17f
+        delay.setTextColor(Color.WHITE)
+        delay.gravity = Gravity.CENTER
+        delay.setPadding(12, 0, 12, 0)
+        val plus = Button(this)
+        plus.text = "+0.5s"
+        styleButton(plus)
+        val sync = Button(this)
+        sync.text = "مزامنة"
+        styleButton(sync, true)
+        val audio = Button(this)
+        audio.text = "تغيير الصوت"
+        styleButton(audio)
+        val video = Button(this)
+        video.text = "تغيير الفيديو"
+        styleButton(video)
+        val back = Button(this)
+        back.text = "رجوع"
+        styleButton(back)
+
+        row.addView(minus); row.addView(delay); row.addView(plus)
+        row.addView(sync); row.addView(audio); row.addView(video); row.addView(back)
+        controls.addView(row)
+        root.addView(controls, FrameLayout.LayoutParams(-1, -2).apply { gravity = Gravity.BOTTOM })
+
+        minus.setOnClickListener {
+            dualPlayer?.changeDelay(-500)
+            delay.text = dualPlayer?.getDelayText() ?: "0.0s"
+        }
+        plus.setOnClickListener {
+            dualPlayer?.changeDelay(500)
+            delay.text = dualPlayer?.getDelayText() ?: "0.0s"
+        }
+        sync.setOnClickListener {
+            dualPlayer?.forceSync()
+            Toast.makeText(this, "تمت محاولة المزامنة", Toast.LENGTH_SHORT).show()
+        }
+        audio.setOnClickListener {
+            showChannelPicker("مصدر الصوت الجديد") { ch ->
+                selectedAudio = ch
+                if (dualPlayer?.switchAudio(ch.streamUrls) == true) {
+                    info.text = "VIDEO: " + (selectedVideo?.name ?: "-") + "\nAUDIO: " + ch.name
+                    Toast.makeText(this, "تم تبديل الصوت بسلاسة", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        video.setOnClickListener {
+            showChannelPicker("مصدر الفيديو الجديد") { ch ->
+                selectedVideo = ch
+                if (dualPlayer?.switchVideo(ch.streamUrls) == true) {
+                    info.text = "VIDEO: " + ch.name + "\nAUDIO: " + (selectedAudio?.name ?: "-")
+                }
+            }
+        }
+        back.setOnClickListener {
+            dualPlayer?.release()
+            dualPlayer = null
+            showChannelScreen()
+        }
+        mix.setOnClickListener { showAudioMixPicker() }
+
+        setContentView(root)
+        dualPlayer?.attachVideoView(videoView)
+        delay.text = dualPlayer?.getDelayText() ?: "0.0s"
+    }
+
+    private fun showSettingsDialog() {
+        val dialog = DialogHelper.createDialog(this)
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.VERTICAL
+        box.setPadding(24, 24, 24, 24)
+        box.background = roundedBackground(Color.rgb(16, 19, 25), 24f)
+
+        val title = TextView(this)
+        title.text = "AudioMix IPTV • الإعدادات"
+        title.textSize = 22f
+        title.typeface = Typeface.DEFAULT_BOLD
+        title.setTextColor(Color.WHITE)
+        box.addView(title)
+
+        val pro = Switch(this)
+        pro.text = "وضع Pro"
+        pro.textSize = 16f
+        pro.setTextColor(Color.WHITE)
+        pro.isChecked = prefs.getBoolean("pro_mode", true)
+        box.addView(pro, LinearLayout.LayoutParams(-1, 54).apply { topMargin = 16 })
+
+        val note = TextView(this)
+        note.text = "وضع Pro يعرض أدوات AudioMix المتقدمة. جودة الفيديو لا تُجبر على 4K؛ المشغل يستخدم جودة المصدر المتاحة."
+        note.textSize = 13f
+        note.setTextColor(Color.LTGRAY)
+        box.addView(note)
+
+        val clear = Button(this)
+        clear.text = "مسح بيانات الاشتراك"
+        styleButton(clear)
+        box.addView(clear, LinearLayout.LayoutParams(-1, 52).apply { topMargin = 18 })
+
+        pro.setOnCheckedChangeListener { _, checked ->
+            prefs.edit().putBoolean("pro_mode", checked).apply()
+        }
+        clear.setOnClickListener {
+            prefs.edit().clear().apply()
+            dialog.dismiss()
+            showLoginScreen()
+        }
+
+        dialog.setContentView(box)
+        dialog.show()
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.88).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+    }
+
     private fun roundedBackground(color: Int, radius: Float): GradientDrawable =
         GradientDrawable().apply {
             setColor(color)
