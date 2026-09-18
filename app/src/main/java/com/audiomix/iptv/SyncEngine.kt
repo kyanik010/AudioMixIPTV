@@ -18,6 +18,8 @@ class SyncEngine(
     private var manualDelayMs = 0L
     private var lastHardCorrectionAt = 0L
     private var speedCorrectionUntil = 0L
+    private var anchorVideoPositionMs = C.TIME_UNSET
+    private var anchorAudioPositionMs = C.TIME_UNSET
 
     companion object {
         private const val TAG = "AudioMix-Sync"
@@ -60,6 +62,8 @@ class SyncEngine(
         if (audioPlayer === newPlayer) return
         if (audioPlayer.playbackParameters.speed != 1f) audioPlayer.setPlaybackSpeed(1f)
         audioPlayer = newPlayer
+        anchorVideoPositionMs = C.TIME_UNSET
+        anchorAudioPositionMs = C.TIME_UNSET
         lastHardCorrectionAt = 0L
         speedCorrectionUntil = 0L
         synchronize(true)
@@ -72,13 +76,28 @@ class SyncEngine(
 
         val videoOffset = videoPlayer.currentLiveOffset
         val audioOffset = audioPlayer.currentLiveOffset
-        if (videoOffset == C.TIME_UNSET || audioOffset == C.TIME_UNSET) {
-            restoreAudioSpeed()
+
+        if (videoOffset != C.TIME_UNSET && audioOffset != C.TIME_UNSET) {
+            val desiredAudioOffset = videoOffset + manualDelayMs
+            // Positive drift means the audio is further behind the desired
+            // position, so it must catch up.
+            correctAudio(audioOffset - desiredAudioOffset, force)
             return
         }
 
-        val desiredAudioOffset = videoOffset + manualDelayMs
-        correctAudio(audioOffset - desiredAudioOffset, force)
+        // Progressive Xtream .ts streams often do not expose a live offset.
+        // Keep a relative playback anchor instead of giving up on sync.
+        if (anchorVideoPositionMs == C.TIME_UNSET || anchorAudioPositionMs == C.TIME_UNSET) {
+            anchorVideoPositionMs = videoPlayer.currentPosition
+            anchorAudioPositionMs = audioPlayer.currentPosition
+            Log.d(TAG, "sync-anchor video=" + anchorVideoPositionMs + " audio=" + anchorAudioPositionMs)
+            return
+        }
+
+        val videoElapsed = videoPlayer.currentPosition - anchorVideoPositionMs
+        val audioElapsed = audioPlayer.currentPosition - anchorAudioPositionMs
+        val audioBehind = videoElapsed + manualDelayMs - audioElapsed
+        correctAudio(audioBehind, force)
     }
 
     private fun correctAudio(drift: Long, force: Boolean) {
