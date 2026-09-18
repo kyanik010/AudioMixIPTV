@@ -8,6 +8,7 @@ import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import java.util.concurrent.atomic.AtomicLong
 
 class PlayerTransferListener(
+    private val tag: String,
     private val bandwidthMeter: DefaultBandwidthMeter
 ) : TransferListener {
 
