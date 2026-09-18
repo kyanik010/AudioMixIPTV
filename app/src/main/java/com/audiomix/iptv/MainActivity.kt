@@ -18,6 +18,8 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import org.json.JSONArray
@@ -625,6 +627,12 @@ class MainActivity : AppCompatActivity() {
         syncButton.text =
             "مزامنة تلقائية"
 
+        val changeVideoButton =
+            Button(this)
+
+        changeVideoButton.text =
+            "تغيير الفيديو"
+
         val changeAudioButton =
             Button(this)
 
@@ -641,6 +649,7 @@ class MainActivity : AppCompatActivity() {
         controls.addView(delayText)
         controls.addView(delayPlus)
         controls.addView(syncButton)
+        controls.addView(changeVideoButton)
         controls.addView(changeAudioButton)
         controls.addView(backButton)
 
@@ -691,10 +700,24 @@ class MainActivity : AppCompatActivity() {
             ).show()
         }
 
+        changeVideoButton.setOnClickListener {
+            showChannelPicker("اختر قناة الفيديو الجديدة") { channel ->
+                selectedVideo = channel
+                val changed = dualPlayer?.switchVideo(channel.streamUrls) ?: false
+                if (changed) {
+                    Toast.makeText(
+                        this,
+                        "تم تغيير مصدر الفيديو إلى: " + channel.name,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+
         changeAudioButton.setOnClickListener {
             showChannelPicker("اختر مصدر الصوت الجديد") { channel ->
                 selectedAudio = channel
-                val changed = dualPlayer?.switchAudio(channel.streamUrl) ?: false
+                val changed = dualPlayer?.switchAudio(channel.streamUrls) ?: false
                 if (changed) {
                     Toast.makeText(
                         this,
@@ -919,15 +942,6 @@ class DualStreamPlayer(
     private var released = false
     private var audioErrorShown = false
 
-    private val syncRunnable = object : Runnable {
-        override fun run() {
-            if (!released) {
-                synchronize()
-                handler.postDelayed(this, 500)
-            }
-        }
-    }
-
     init {
         require(videoUrls.isNotEmpty()) { "No video URL" }
         require(audioCandidates.isNotEmpty()) { "No audio URL" }
@@ -946,9 +960,28 @@ class DualStreamPlayer(
                 .build()
         )
 
-        videoPlayer = ExoPlayer.Builder(context).build()
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                10_000,
+                30_000,
+                1_500,
+                3_000
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+
+        val renderersFactory = DefaultRenderersFactory(context)
+            .setEnableDecoderFallback(true)
+
+        videoPlayer = ExoPlayer.Builder(context)
+            .setLoadControl(loadControl)
+            .setRenderersFactory(renderersFactory)
+            .build()
+
         audioPlayer = ExoPlayer.Builder(context)
             .setTrackSelector(audioSelector)
+            .setLoadControl(loadControl)
+            .setRenderersFactory(renderersFactory)
             .build()
 
         configurePlayers()
@@ -1089,7 +1122,12 @@ class DualStreamPlayer(
         audioPlayer.volume = 1f
         videoPlayer.play()
         audioPlayer.play()
-        handler.post(syncRunnable)
+
+        // Initial sync only. Continuous 500ms corrections caused timing jitter.
+        handler.postDelayed(
+            { if (!released) synchronize(force = false) },
+            2500
+        )
     }
 
     fun changeDelay(amountMs: Long) {
@@ -1105,27 +1143,54 @@ class DualStreamPlayer(
         synchronize(force = true)
     }
 
-    fun switchAudio(newAudioUrl: String): Boolean {
-        if (released || newAudioUrl.isBlank()) return false
+    fun switchVideo(newVideoUrls: List<String>): Boolean {
+        if (released) return false
 
-        val existingIndex = audioCandidates.indexOf(newAudioUrl)
-        if (existingIndex >= 0) {
-            playAudioCandidate(existingIndex)
-            handler.postDelayed({ if (!released) synchronize(force = true) }, 750)
-            return true
+        val urls = newVideoUrls.distinct().filter { it.isNotBlank() }
+        if (urls.isEmpty()) return false
+
+        return try {
+            // Replace only the video source. Audio keeps running.
+            videoPlayer.stop()
+            videoPlayer.clearMediaItems()
+            videoPlayer.setMediaItem(createMediaItem(urls.first()))
+            videoPlayer.volume = 0f
+            videoPlayer.prepare()
+            videoPlayer.playWhenReady = true
+            videoPlayer.play()
+
+            handler.postDelayed(
+                { if (!released) synchronize(force = true) },
+                1200
+            )
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "switchVideo failed", e)
+            false
         }
+    }
+
+    fun switchAudio(newAudioUrls: List<String>): Boolean {
+        if (released) return false
+
+        val urls = newAudioUrls.distinct().filter { it.isNotBlank() }
+        if (urls.isEmpty()) return false
 
         return try {
             audioPlayer.stop()
             audioPlayer.clearMediaItems()
-            currentAudioUrl = newAudioUrl
-            audioPlayer.setMediaItem(createMediaItem(newAudioUrl))
+            currentAudioUrl = urls.first()
+            audioPlayer.setMediaItem(createMediaItem(urls.first()))
             audioPlayer.volume = 1f
             audioPlayer.setSkipSilenceEnabled(false)
             audioPlayer.prepare()
             audioPlayer.playWhenReady = true
             audioPlayer.play()
-            handler.postDelayed({ if (!released) synchronize(force = true) }, 750)
+
+            handler.postDelayed(
+                { if (!released) synchronize(force = true) },
+                1200
+            )
             true
         } catch (e: Exception) {
             Log.e(TAG, "switchAudio failed", e)
@@ -1154,15 +1219,13 @@ class DualStreamPlayer(
     private fun correctAudio(difference: Long, force: Boolean) {
         val absolute = abs(difference)
 
-        if (force || absolute > 1500L) {
+        // Never continuously change playback speed between independent live
+        // streams. Repeated 0.98/1.02 corrections can cause audible stutter.
+        if (force || absolute > 2_500L) {
             val target = audioPlayer.currentPosition - difference
-            if (target >= 0L) audioPlayer.seekTo(target)
-            audioPlayer.setPlaybackParameters(PlaybackParameters(1f))
-        } else if (absolute > 250L) {
-            val speed = if (difference > 0) 0.98f else 1.02f
-            audioPlayer.setPlaybackParameters(PlaybackParameters(speed))
-        } else {
-            audioPlayer.setPlaybackParameters(PlaybackParameters(1f))
+            if (target >= 0L) {
+                audioPlayer.seekTo(target)
+            }
         }
     }
 
