@@ -11,6 +11,7 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
@@ -30,6 +31,8 @@ class DualStreamPlayer(
     private val bandwidthMeter = DefaultBandwidthMeter.Builder(context).build()
     private val adaptiveNetwork = AdaptiveNetworkController()
     private val networkContention = NetworkContentionController()
+    private val videoNetworkGate = NetworkGate()
+    private val audioNetworkGate = NetworkGate()
     private var audioNetworkYielding = false
     private val recovery = RecoverySystem()
     private val handler = Handler(Looper.getMainLooper())
@@ -104,8 +107,9 @@ class DualStreamPlayer(
                 videoNetwork = videoDiagnostics.networkSnapshot(),
                 audioNetwork = audioDiagnostics.networkSnapshot()
             )
-            if (contention.protectingVideo && !audioNetworkYielding && audioPlayer.isPlaying) {
+            if (contention.protectingVideo && !audioNetworkYielding) {
                 audioNetworkYielding = true
+                audioNetworkGate.setBlocked(true)
                 audioPlayer.playWhenReady = false
                 Log.w(
                     TAG,
@@ -115,6 +119,7 @@ class DualStreamPlayer(
                 )
             } else if (!contention.protectingVideo && audioNetworkYielding) {
                 audioNetworkYielding = false
+                audioNetworkGate.setBlocked(false)
                 audioPlayer.playWhenReady = true
                 audioPlayer.play()
                 Log.i(
@@ -185,7 +190,7 @@ class DualStreamPlayer(
         prepareAudio(audioUrls.first())
     }
 
-    private fun mediaSourceFactory(): DefaultMediaSourceFactory {
+    private fun mediaSourceFactory(isAudio: Boolean): DefaultMediaSourceFactory {
         val httpFactory = DefaultHttpDataSource.Factory()
             .setUserAgent("AudioMix IPTV/1.0")
             .setConnectTimeoutMs(15_000)
@@ -193,7 +198,11 @@ class DualStreamPlayer(
             .setAllowCrossProtocolRedirects(true)
             .setTransferListener(bandwidthMeter)
 
-        val dataSourceFactory = DefaultDataSource.Factory(context, httpFactory)
+        val baseDataSourceFactory = DefaultDataSource.Factory(context, httpFactory)
+        val gate = if (isAudio) audioNetworkGate else videoNetworkGate
+        val dataSourceFactory = DataSource.Factory {
+            NetworkGateDataSource(baseDataSourceFactory.createDataSource(), gate)
+        }
 
         val retryPolicy = object : DefaultLoadErrorHandlingPolicy() {
             override fun getRetryDelayMsFor(
@@ -219,7 +228,7 @@ class DualStreamPlayer(
         return ExoPlayer.Builder(context)
             .setLoadControl(bufferManager.createVideoLoadControl())
             .setRenderersFactory(newRenderersFactory())
-             .setMediaSourceFactory(mediaSourceFactory())
+             .setMediaSourceFactory(mediaSourceFactory(isAudio = false))
             .setBandwidthMeter(bandwidthMeter)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
@@ -251,7 +260,7 @@ class DualStreamPlayer(
             .setTrackSelector(selector)
             .setLoadControl(bufferManager.createAudioLoadControl())
             .setRenderersFactory(newRenderersFactory())
-            .setMediaSourceFactory(mediaSourceFactory())
+            .setMediaSourceFactory(mediaSourceFactory(isAudio = true))
             .setBandwidthMeter(bandwidthMeter)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
@@ -395,6 +404,8 @@ class DualStreamPlayer(
 
     fun play() {
         if (released) return
+        videoNetworkGate.setBlocked(false)
+        audioNetworkGate.setBlocked(false)
         videoPlayer.volume = 0f
         audioPlayer.volume = 1f
         audioNetworkYielding = false
@@ -565,6 +576,8 @@ class DualStreamPlayer(
     fun release() {
         if (released) return
         released = true
+        audioNetworkGate.setBlocked(false)
+        videoNetworkGate.setBlocked(false)
         handler.removeCallbacksAndMessages(null)
         syncEngine.release()
         recovery.release()
