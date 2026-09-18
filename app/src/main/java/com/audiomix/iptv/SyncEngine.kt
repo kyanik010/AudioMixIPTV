@@ -29,6 +29,7 @@ class SyncEngine(
         private const val SPEED_WINDOW_MS = 1_500L
         private const val MIN_SPEED = 0.985f
         private const val MAX_SPEED = 1.015f
+        private const val MAX_CORRECTION_SEEK_MS = 3_000L
     }
 
     private val monitor = object : Runnable {
@@ -91,12 +92,29 @@ class SyncEngine(
 
         val hardThreshold = if (force) FORCE_THRESHOLD_MS else HARD_THRESHOLD_MS
         if (absolute >= hardThreshold && now - lastHardCorrectionAt >= HARD_COOLDOWN_MS) {
-            val target = (audioPlayer.currentPosition + drift).coerceAtLeast(0L)
-            Log.d(TAG, "hard-sync drift=${drift}ms target=${target} delay=${manualDelayMs}ms")
-            audioPlayer.setPlaybackSpeed(1f)
-            audioPlayer.seekTo(target)
-            lastHardCorrectionAt = now
+            // Never perform a large automatic seek on an independent live stream.
+            // A seek can move audio to a different live segment and create a larger
+            // discontinuity than the original drift. Normal sync uses speed correction.
+            if (force && absolute <= MAX_CORRECTION_SEEK_MS) {
+                val target = (audioPlayer.currentPosition + drift).coerceAtLeast(0L)
+                Log.d(TAG, "forced-sync drift=${drift}ms target=${target} delay=${manualDelayMs}ms")
+                audioPlayer.setPlaybackSpeed(1f)
+                audioPlayer.seekTo(target)
+                lastHardCorrectionAt = now
+                speedCorrectionUntil = now + SPEED_WINDOW_MS
+                return
+            }
+
+            val ratio = absolute.coerceAtMost(1_500L) / 1_500f
+            val boundedSpeed = if (drift > 0L) {
+                (1f + ratio * 0.015f).coerceIn(1f, MAX_SPEED)
+            } else {
+                (1f - ratio * 0.015f).coerceIn(MIN_SPEED, 1f)
+            }
+            audioPlayer.setPlaybackSpeed(boundedSpeed)
             speedCorrectionUntil = now + SPEED_WINDOW_MS
+            lastHardCorrectionAt = now
+            Log.d(TAG, "safe-sync drift=${drift}ms speed=${boundedSpeed}")
             return
         }
 
