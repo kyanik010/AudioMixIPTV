@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.audiomix.iptv"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.audiomix.iptv"
