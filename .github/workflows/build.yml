@@ -1,5 +1,6 @@
 name: Build AudioMix IPTV
 # CI trigger refresh: keep push builds enabled for every main commit.
+# Playback stability build after live-stream recovery and sync hardening.
 
 on:
   workflow_dispatch:
