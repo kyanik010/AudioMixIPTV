@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity() {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(30, 50, 30, 40)
+            setPadding(d(30), d(50), d(30), d(40))
         }
         scroll.addView(box)
 
@@ -68,7 +68,7 @@ class MainActivity : AppCompatActivity() {
 
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(22, 22, 22, 22)
+            setPadding(d(22), d(22), d(22), d(22))
             background = rounded(Color.rgb(24, 29, 38), 22f)
         }
         box.addView(card, lp(-1, -2))
@@ -126,7 +126,7 @@ class MainActivity : AppCompatActivity() {
         root.background = bg()
         val main = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(22, 18, 22, 14)
+            setPadding(d(22), d(18), d(22), d(14))
         }
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         header.addView(title("AudioMix IPTV", 22f), lp(0, 54, weight = 1f))
@@ -135,7 +135,7 @@ class MainActivity : AppCompatActivity() {
         main.addView(header)
 
         val selected = label(selectionText(), 13f).apply {
-            setTextColor(Color.LTGRAY); setPadding(14, 12, 14, 12); background = rounded(Color.rgb(25, 30, 39), 16f)
+            setTextColor(Color.LTGRAY); setPadding(d(14), d(12), d(14), d(12)); background = rounded(Color.rgb(25, 30, 39), 16f)
         }
         main.addView(selected, lp(-1, -2, top = 8))
 
@@ -185,9 +185,9 @@ class MainActivity : AppCompatActivity() {
     private fun showAudioPicker() {
         val video = selectedVideo ?: return
         val dialog = Dialog(this)
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(22, 22, 22, 22); background = rounded(Color.rgb(16, 19, 25), 22f) }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(d(22), d(22), d(22), d(22)); background = rounded(Color.rgb(16, 19, 25), 22f) }
         box.addView(title("AudioMix", 24f))
-        box.addView(label("Video Source\n${video.name}", 15f, true).apply { setPadding(14, 14, 14, 14) }, lp(-1, -2, top = 14))
+        box.addView(label("Video Source\n${video.name}", 15f, true).apply { setPadding(d(14), d(14), d(14), d(14)) }, lp(-1, -2, top = 14))
         val audio = Button(this).apply { text = if (selectedAudio == null) "اختيار Audio Source" else "Audio: ${selectedAudio!!.name}"; style(this) }
         val start = Button(this).apply { text = "تشغيل"; style(this, true) }
         box.addView(audio, lp(-1, 54, top = 10)); box.addView(start, lp(-1, 54, top = 10))
@@ -198,7 +198,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun pickChannel(titleText: String, onPick: (Channel) -> Unit) {
         val dialog = Dialog(this)
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 20, 20, 20); background = rounded(Color.rgb(16, 19, 25), 22f) }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(d(20), d(20), d(20), d(20)); background = rounded(Color.rgb(16, 19, 25), 22f) }
         box.addView(title(titleText, 21f))
         val search = input("بحث..."); box.addView(search, lp(-1, 52, top = 10))
         val list = ListView(this); box.addView(list, lp(-1, 480, top = 8))
@@ -227,13 +227,13 @@ class MainActivity : AppCompatActivity() {
         root = FrameLayout(this); root.setBackgroundColor(Color.BLACK)
         val view = PlayerView(this).apply { useController = true; setBackgroundColor(Color.BLACK) }
         root.addView(view, FrameLayout.LayoutParams(-1, -1))
-        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(10, 8, 10, 8); setBackgroundColor(Color.argb(180, 0, 0, 0)) }
+        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(d(10), d(8), d(10), d(8)); setBackgroundColor(Color.argb(180, 0, 0, 0)) }
         bar.addView(title("AudioMix IPTV", 18f), lp(0, 50, weight = 1f))
         val mix = Button(this).apply { text = "AudioMix"; style(this, true) }; bar.addView(mix, lp(105, 46))
         root.addView(bar, FrameLayout.LayoutParams(-1, 66).apply { gravity = Gravity.TOP })
-        val bottom = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(6, 6, 6, 8); setBackgroundColor(Color.argb(190, 0, 0, 0)) }
+        val bottom = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(d(6), d(6), d(6), d(8)); setBackgroundColor(Color.argb(190, 0, 0, 0)) }
         val minus = Button(this).apply { text = "-0.5s"; style(this) }
-        val delay = label(player?.getDelayText() ?: "0.0s", 15f).apply { gravity = Gravity.CENTER; setPadding(8, 0, 8, 0) }
+        val delay = label(player?.getDelayText() ?: "0.0s", 15f).apply { gravity = Gravity.CENTER; setPadding(d(8), d(0), d(8), d(0)) }
         val plus = Button(this).apply { text = "+0.5s"; style(this) }
         val sync = Button(this).apply { text = "مزامنة"; style(this, true) }
         val audio = Button(this).apply { text = "تغيير الصوت"; style(this) }
@@ -253,7 +253,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun settingsDialog() {
         val dialog = Dialog(this)
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(22, 22, 22, 22); background = rounded(Color.rgb(16, 19, 25), 22f) }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(d(22), d(22), d(22), d(22)); background = rounded(Color.rgb(16, 19, 25), 22f) }
         box.addView(title("الإعدادات", 22f))
         box.addView(label("جودة الفيديو تتبع المصدر الرسمي للبث. لا يتم إجبار أي قناة على 4K.", 13f).apply { setTextColor(Color.LTGRAY) }, lp(-1, -2, top = 14))
         val clear = Button(this).apply { text = "مسح بيانات الاشتراك"; style(this) }; box.addView(clear, lp(-1, 52, top = 16))
@@ -264,11 +264,16 @@ class MainActivity : AppCompatActivity() {
     private fun selectionText() = "Video: ${selectedVideo?.name ?: "غير محدد"}\nAudio: ${selectedAudio?.name ?: "غير محدد"}"
     private fun title(text: String, size: Float) = label(text, size, true).apply { setTextColor(Color.WHITE) }
     private fun label(text: String, size: Float, bold: Boolean = false) = TextView(this).apply { this.text = text; textSize = size; setTextColor(Color.WHITE); if (bold) typeface = Typeface.DEFAULT_BOLD }
-    private fun input(hint: String) = EditText(this).apply { this.hint = hint; setTextColor(Color.WHITE); setHintTextColor(Color.GRAY); setSingleLine(true); background = rounded(Color.rgb(16, 19, 25), 16f); setPadding(16, 0, 16, 0) }
+    private fun input(hint: String) = EditText(this).apply { this.hint = hint; setTextColor(Color.WHITE); setHintTextColor(Color.GRAY); setSingleLine(true); background = rounded(Color.rgb(16, 19, 25), 16f); setPadding(d(16), d(0), d(16), d(0)) }
     private fun style(b: Button, primary: Boolean = false) { b.isAllCaps = false; b.setTextColor(Color.WHITE); b.textSize = 13f; b.background = rounded(if (primary) Color.rgb(65, 132, 225) else Color.rgb(32, 38, 48), 15f); b.stateListAnimator = null; b.isFocusable = true }
     private fun rounded(color: Int, radius: Float) = GradientDrawable().apply { setColor(color); cornerRadius = radius }
     private fun bg() = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.rgb(6, 8, 12), Color.rgb(22, 27, 36), Color.rgb(5, 7, 10)))
-    private fun lp(w: Int, h: Int, weight: Float = 0f, top: Int = 0, bottom: Int = 0, left: Int = 0, right: Int = 0) = LinearLayout.LayoutParams(w, h, weight).apply { topMargin = top; bottomMargin = bottom; leftMargin = left; rightMargin = right }
+    private fun d(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
+    private fun dim(value: Int): Int = if (value < 0) value else d(value)
+    private fun lp(w: Int, h: Int, weight: Float = 0f, top: Int = 0, bottom: Int = 0, left: Int = 0, right: Int = 0) =
+        LinearLayout.LayoutParams(dim(w), dim(h), weight).apply {
+            topMargin = d(top); bottomMargin = d(bottom); leftMargin = d(left); rightMargin = d(right)
+        }
     private fun fieldLp() = lp(-1, 54, bottom = 12)
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
 
