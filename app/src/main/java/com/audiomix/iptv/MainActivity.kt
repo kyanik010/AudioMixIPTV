@@ -3,6 +3,8 @@ package com.audiomix.iptv
 import android.app.Dialog
 import android.content.Context
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -81,228 +83,177 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showLoginScreen() {
-
         root = FrameLayout(this)
-        root.setBackgroundColor(Color.BLACK)
+        root.background = GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(Color.rgb(6, 8, 12), Color.rgb(22, 27, 36), Color.rgb(5, 7, 10))
+        )
 
+        val scroll = ScrollView(this)
         val container = LinearLayout(this)
         container.orientation = LinearLayout.VERTICAL
-        container.gravity = Gravity.CENTER
-        container.setPadding(50, 40, 50, 40)
+        container.gravity = Gravity.CENTER_HORIZONTAL
+        container.setPadding(42, 50, 42, 40)
+        scroll.addView(container)
 
-        root.addView(
-            container,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        )
+        val brand = TextView(this)
+        brand.text = "▶  AudioMix IPTV"
+        brand.textSize = 31f
+        brand.typeface = Typeface.DEFAULT_BOLD
+        brand.setTextColor(Color.WHITE)
+        brand.gravity = Gravity.CENTER
+        brand.setPadding(24, 16, 24, 16)
+        brand.background = roundedBackground(Color.rgb(25, 39, 58), 28f)
+        container.addView(brand, LinearLayout.LayoutParams(-2, 70).apply { bottomMargin = 26 })
 
-        val title = TextView(this)
-        title.text = "AudioMix IPTV"
-        title.textSize = 32f
-        title.setTextColor(Color.WHITE)
-        title.gravity = Gravity.CENTER
-        title.setPadding(0, 0, 0, 40)
+        val hero = TextView(this)
+        hero.text = "صورة من قناة\nوصوت من قناة أخرى"
+        hero.textSize = 25f
+        hero.typeface = Typeface.DEFAULT_BOLD
+        hero.setTextColor(Color.WHITE)
+        hero.gravity = Gravity.CENTER
+        container.addView(hero, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 8 })
 
-        container.addView(title)
+        val sub = TextView(this)
+        sub.text = "اشتراك Xtream واحد • تحكم مستقل بمصدر الفيديو والصوت"
+        sub.textSize = 14f
+        sub.setTextColor(Color.LTGRAY)
+        sub.gravity = Gravity.CENTER
+        container.addView(sub, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 28 })
 
-        val server = EditText(this)
-        serverField = server
-        server.hint = "Server URL"
-        server.setTextColor(Color.WHITE)
-        server.setHintTextColor(Color.GRAY)
-        server.setSingleLine(true)
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.VERTICAL
+        card.setPadding(24, 24, 24, 24)
+        card.background = roundedBackground(Color.rgb(24, 28, 36), 24f)
+        container.addView(card, LinearLayout.LayoutParams(-1, -2))
 
-        container.addView(
-            server,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = 20
-            }
-        )
+        serverField = styledField("Server URL")
+        usernameField = styledField("Username")
+        passwordField = styledField("Password")
+        passwordField.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
 
-        val username = EditText(this)
-        usernameField = username
-        username.hint = "Username"
-        username.setTextColor(Color.WHITE)
-        username.setHintTextColor(Color.GRAY)
-        username.setSingleLine(true)
-
-        container.addView(
-            username,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = 20
-            }
-        )
-
-        val password = EditText(this)
-        passwordField = password
-        password.hint = "Password"
-        password.setTextColor(Color.WHITE)
-        password.setHintTextColor(Color.GRAY)
-        password.inputType =
-            android.text.InputType.TYPE_CLASS_TEXT or
-                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-        password.setSingleLine(true)
-
-        container.addView(
-            password,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = 30
-            }
-        )
+        card.addView(serverField, fieldParams())
+        card.addView(usernameField, fieldParams())
+        card.addView(passwordField, fieldParams())
 
         loginButton = Button(this)
-        loginButton.text = "تسجيل الدخول"
+        loginButton.text = "اتصال وفتح القنوات"
+        styleButton(loginButton, true)
+        card.addView(loginButton, LinearLayout.LayoutParams(-1, 56).apply { topMargin = 8 })
 
-        container.addView(
-            loginButton,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-        )
+        val footer = TextView(this)
+        footer.text = "Android • Android TV\nVideo Source + Audio Source"
+        footer.textSize = 12f
+        footer.setTextColor(Color.GRAY)
+        footer.gravity = Gravity.CENTER
+        container.addView(footer, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 22 })
+
+        setContentView(root)
+        root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+
+        serverField.setText(prefs.getString("server", "") ?: "")
+        usernameField.setText(prefs.getString("username", "") ?: "")
+        passwordField.setText(prefs.getString("password", "") ?: "")
 
         loginButton.setOnClickListener {
+            val serverText = serverField.text.toString().trim()
+            val userText = usernameField.text.toString().trim()
+            val passText = passwordField.text.toString()
 
-            val serverText = server.text.toString().trim()
-            val userText = username.text.toString().trim()
-            val passText = password.text.toString()
-
-            if (
-                serverText.isEmpty() ||
-                userText.isEmpty() ||
-                passText.isEmpty()
-            ) {
-                Toast.makeText(
-                    this,
-                    "أدخل السيرفر واسم المستخدم وكلمة المرور",
-                    Toast.LENGTH_LONG
-                ).show()
+            if (serverText.isEmpty() || userText.isEmpty() || passText.isEmpty()) {
+                Toast.makeText(this, "أدخل السيرفر واسم المستخدم وكلمة المرور", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
 
             loginButton.isEnabled = false
-            loginButton.text = "جاري الاتصال..."
+            loginButton.text = "جاري تحميل القنوات..."
 
             executor.execute {
-
                 try {
-
-                    val creds = XtreamCredentials(
-                        normalizeServer(serverText),
-                        userText,
-                        passText
-                    )
-
-                    val result =
-                        XtreamApi.getLiveChannels(creds)
-
+                    val creds = XtreamCredentials(normalizeServer(serverText), userText, passText)
+                    val result = XtreamApi.getLiveChannels(creds)
                     runOnUiThread {
-
                         loginButton.isEnabled = true
-                        loginButton.text = "تسجيل الدخول"
-
+                        loginButton.text = "اتصال وفتح القنوات"
                         if (result.isEmpty()) {
-
-                            Toast.makeText(
-                                this,
-                                "تعذر جلب القنوات. تحقق من بيانات Xtream Codes.",
-                                Toast.LENGTH_LONG
-                            ).show()
-
+                            Toast.makeText(this, "تعذر جلب القنوات. تحقق من بيانات Xtream Codes.", Toast.LENGTH_LONG).show()
                         } else {
-
                             credentials = creds
                             channels = result
-
-                            // حفظ بيانات Xtream على الجهاز حتى لا يضطر المستخدم
-                            // لإدخالها مرة أخرى بعد إغلاق التطبيق.
                             prefs.edit()
                                 .putString("server", creds.server)
                                 .putString("username", creds.username)
                                 .putString("password", creds.password)
                                 .apply()
-
                             showChannelScreen()
                         }
                     }
-
                 } catch (e: Exception) {
-
                     runOnUiThread {
-
                         loginButton.isEnabled = true
-                        loginButton.text = "تسجيل الدخول"
-
-                        Toast.makeText(
-                            this,
-                            "خطأ في الاتصال: ${e.message}",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        loginButton.text = "اتصال وفتح القنوات"
+                        Toast.makeText(this, "خطأ في الاتصال: " + e.message, Toast.LENGTH_LONG).show()
                     }
                 }
             }
         }
 
-        setContentView(root)
-
-        // استعادة آخر بيانات الحساب تلقائيًا.
-        serverField.setText(prefs.getString("server", "") ?: "")
-        usernameField.setText(prefs.getString("username", "") ?: "")
-        passwordField.setText(prefs.getString("password", "") ?: "")
-
-        // إذا كانت البيانات محفوظة، حاول تسجيل الدخول تلقائيًا.
-        if (serverField.text.isNotBlank() &&
-            usernameField.text.isNotBlank() &&
-            passwordField.text.isNotBlank()
-        ) {
-            loginButton.postDelayed({ loginButton.performClick() }, 250)
+        if (serverField.text.isNotBlank() && usernameField.text.isNotBlank() && passwordField.text.isNotBlank()) {
+            loginButton.postDelayed({ loginButton.performClick() }, 300)
         }
     }
 
     private fun showChannelScreen() {
-
         root = FrameLayout(this)
-        root.setBackgroundColor(Color.BLACK)
+        root.background = GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(Color.rgb(7, 9, 13), Color.rgb(20, 24, 32), Color.rgb(7, 9, 13))
+        )
 
         val main = LinearLayout(this)
         main.orientation = LinearLayout.VERTICAL
-        main.setPadding(25, 25, 25, 25)
+        main.setPadding(26, 22, 26, 18)
 
-        root.addView(
-            main,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        )
+        val header = LinearLayout(this)
+        header.orientation = LinearLayout.HORIZONTAL
+        header.gravity = Gravity.CENTER_VERTICAL
+
+        val logo = TextView(this)
+        logo.text = "▶  AudioMix IPTV"
+        logo.textSize = 23f
+        logo.typeface = Typeface.DEFAULT_BOLD
+        logo.setTextColor(Color.WHITE)
+        header.addView(logo, LinearLayout.LayoutParams(0, 54, 1f))
+
+        val settings = Button(this)
+        settings.text = "⚙"
+        styleButton(settings)
+        header.addView(settings, LinearLayout.LayoutParams(58, 50))
+        main.addView(header)
 
         val title = TextView(this)
-        title.text = "اختيار القنوات"
+        title.text = "القنوات"
         title.textSize = 28f
+        title.typeface = Typeface.DEFAULT_BOLD
         title.setTextColor(Color.WHITE)
-        title.gravity = Gravity.CENTER
-        title.setPadding(0, 0, 0, 20)
-
-        main.addView(title)
+        main.addView(title, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 18 })
 
         val selectedText = TextView(this)
         selectedText.text = buildSelectionText()
-        selectedText.textSize = 17f
+        selectedText.textSize = 14f
         selectedText.setTextColor(Color.LTGRAY)
-        selectedText.setPadding(10, 10, 10, 25)
+        selectedText.setPadding(16, 14, 16, 14)
+        selectedText.background = roundedBackground(Color.rgb(25, 30, 39), 18f)
+        main.addView(selectedText, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 8 })
 
-        main.addView(selectedText)
+        val search = EditText(this)
+        search.hint = "بحث في القنوات..."
+        search.setTextColor(Color.WHITE)
+        search.setHintTextColor(Color.GRAY)
+        search.setSingleLine(true)
+        search.background = roundedBackground(Color.rgb(24, 28, 36), 18f)
+        search.setPadding(18, 0, 18, 0)
+        main.addView(search, LinearLayout.LayoutParams(-1, 54).apply { topMargin = 12 })
 
         val buttons = LinearLayout(this)
         buttons.orientation = LinearLayout.HORIZONTAL
@@ -310,623 +261,175 @@ class MainActivity : AppCompatActivity() {
 
         val videoButton = Button(this)
         videoButton.text = "اختيار الفيديو"
-
+        styleButton(videoButton, true)
         val audioButton = Button(this)
         audioButton.text = "اختيار الصوت"
+        styleButton(audioButton)
 
-        buttons.addView(
-            videoButton,
-            LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-        )
-
-        buttons.addView(
-            audioButton,
-            LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-        )
-
-        main.addView(buttons)
+        buttons.addView(videoButton, LinearLayout.LayoutParams(0, 52, 1f))
+        buttons.addView(audioButton, LinearLayout.LayoutParams(0, 52, 1f).apply { leftMargin = 8 })
+        main.addView(buttons, LinearLayout.LayoutParams(-1, 52).apply { topMargin = 12 })
 
         val playButton = Button(this)
-        playButton.text = "تشغيل الفيديو + الصوت"
-
-        main.addView(
-            playButton,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = 25
-            }
-        )
+        playButton.text = "▶  تشغيل Video + Audio"
+        styleButton(playButton, true)
+        main.addView(playButton, LinearLayout.LayoutParams(-1, 56).apply { topMargin = 10 })
 
         val count = TextView(this)
-        count.text = "عدد القنوات: ${channels.size}"
-        count.textSize = 15f
+        count.text = "عدد القنوات: " + channels.size + "  •  مصدر فيديو + مصدر صوت من نفس الاشتراك"
+        count.textSize = 12f
         count.setTextColor(Color.GRAY)
-        count.gravity = Gravity.CENTER
-        count.setPadding(0, 25, 0, 0)
+        main.addView(count, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 10 })
 
-        main.addView(count)
+        val list = ListView(this)
+        main.addView(list, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = 10 })
+
+        fun updateList(query: String) {
+            val filtered = if (query.isBlank()) channels else channels.filter {
+                it.name.contains(query, ignoreCase = true)
+            }
+            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, filtered.map { it.name }.take(1000))
+            list.setOnItemClickListener { _, _, position, _ ->
+                val ch = filtered[position]
+                selectedVideo = ch
+                selectedText.text = buildSelectionText()
+                showAudioMixPicker()
+            }
+        }
+
+        search.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { updateList(s?.toString() ?: "") }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
 
         videoButton.setOnClickListener {
-
-            showChannelPicker(
-                "اختر قناة الفيديو"
-            ) { channel ->
-
-                selectedVideo = channel
+            showChannelPicker("اختر قناة الفيديو") {
+                selectedVideo = it
                 selectedText.text = buildSelectionText()
             }
         }
 
         audioButton.setOnClickListener {
-
-            showChannelPicker(
-                "اختر قناة الصوت"
-            ) { channel ->
-
-                selectedAudio = channel
+            showChannelPicker("اختر قناة الصوت") {
+                selectedAudio = it
                 selectedText.text = buildSelectionText()
             }
         }
 
         playButton.setOnClickListener {
-
             if (selectedVideo == null) {
-
-                Toast.makeText(
-                    this,
-                    "اختر قناة الفيديو أولًا",
-                    Toast.LENGTH_LONG
-                ).show()
-
+                Toast.makeText(this, "اختر قناة الفيديو أولًا", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
-
             if (selectedAudio == null) {
-
-                Toast.makeText(
-                    this,
-                    "اختر قناة الصوت أولًا",
-                    Toast.LENGTH_LONG
-                ).show()
-
+                Toast.makeText(this, "اختر قناة الصوت أولًا", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
-
             startDualPlayback()
         }
 
+        settings.setOnClickListener { showSettingsDialog() }
+
+        main.addView(labelText("اختيار أي قناة = فتح AudioMix مباشرة", 12f), 4)
+        root.addView(main, FrameLayout.LayoutParams(-1, -1))
         setContentView(root)
+        updateList("")
     }
 
-    private fun buildSelectionText(): String {
-
-        val videoName =
-            selectedVideo?.name ?: "لم يتم اختيار فيديو"
-
-        val audioName =
-            selectedAudio?.name ?: "لم يتم اختيار صوت"
-
-        return """
-            🎥 الفيديو:
-            $videoName
-            
-            🔊 الصوت:
-            $audioName
-        """.trimIndent()
-    }
-
-    private fun showChannelPicker(
-        titleText: String,
-        onSelected: (Channel) -> Unit
-    ) {
-
-        val dialog =
-            DialogHelper.createDialog(this)
-
-        val container = LinearLayout(this)
-        container.orientation = LinearLayout.VERTICAL
-        container.setPadding(25, 25, 25, 25)
-        container.setBackgroundColor(
-            Color.rgb(25, 25, 25)
-        )
+    private fun showAudioMixPicker() {
+        val video = selectedVideo ?: return
+        val dialog = DialogHelper.createDialog(this)
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.VERTICAL
+        box.setPadding(24, 24, 24, 24)
+        box.background = roundedBackground(Color.rgb(16, 19, 25), 24f)
 
         val title = TextView(this)
-        title.text = titleText
-        title.textSize = 22f
+        title.text = "AudioMix"
+        title.textSize = 25f
+        title.typeface = Typeface.DEFAULT_BOLD
         title.setTextColor(Color.WHITE)
-        title.setPadding(0, 0, 0, 20)
+        box.addView(title)
 
-        container.addView(title)
+        val videoInfo = TextView(this)
+        videoInfo.text = "🎥 Video Source\n" + video.name
+        videoInfo.textSize = 15f
+        videoInfo.setTextColor(Color.WHITE)
+        videoInfo.setPadding(16, 14, 16, 14)
+        videoInfo.background = roundedBackground(Color.rgb(26, 31, 40), 18f)
+        box.addView(videoInfo, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 16 })
 
-        val search = EditText(this)
-        search.hint = "بحث عن قناة..."
-        search.setTextColor(Color.WHITE)
-        search.setHintTextColor(Color.GRAY)
-        search.setSingleLine(true)
+        val audioButton = Button(this)
+        audioButton.text = if (selectedAudio == null) "🔊 اختيار Audio Source" else "🔊 " + selectedAudio!!.name
+        styleButton(audioButton)
+        box.addView(audioButton, LinearLayout.LayoutParams(-1, 54).apply { topMargin = 10 })
 
-        container.addView(search)
+        val play = Button(this)
+        play.text = "تشغيل Video + Audio"
+        styleButton(play, true)
+        box.addView(play, LinearLayout.LayoutParams(-1, 56).apply { topMargin = 12 })
 
-        val list = ListView(this)
-
-        container.addView(
-            list,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            )
-        )
-
-        fun updateList(query: String) {
-
-            val filtered =
-                if (query.isBlank()) {
-                    channels
-                } else {
-                    channels.filter {
-                        it.name.contains(
-                            query,
-                            ignoreCase = true
-                        )
-                    }
-                }
-
-            val names =
-                filtered.map {
-                    it.name
-                }
-
-            list.adapter =
-                ArrayAdapter(
-                    this,
-                    android.R.layout.simple_list_item_1,
-                    names
-                )
-
-            list.setOnItemClickListener {
-                    _,
-                    _,
-                    position,
-                    _ ->
-
-                    val selected =
-                        filtered[position]
-
-                    onSelected(selected)
-
-                    dialog.dismiss()
-                }
+        audioButton.setOnClickListener {
+            showChannelPicker("اختر مصدر الصوت") {
+                selectedAudio = it
+                audioButton.text = "🔊 " + it.name
+            }
         }
 
-        search.addTextChangedListener(
-            object : android.text.TextWatcher {
-
-                override fun beforeTextChanged(
-                    s: CharSequence?,
-                    start: Int,
-                    count: Int,
-                    after: Int
-                ) {
-                }
-
-                override fun onTextChanged(
-                    s: CharSequence?,
-                    start: Int,
-                    before: Int,
-                    count: Int
-                ) {
-                    updateList(
-                        s?.toString() ?: ""
-                    )
-                }
-
-                override fun afterTextChanged(
-                    s: android.text.Editable?
-                ) {
-                }
+        play.setOnClickListener {
+            if (selectedAudio == null) {
+                Toast.makeText(this, "اختر مصدر الصوت أولًا", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
             }
-        )
+            dialog.dismiss()
+            startDualPlayback()
+        }
 
-        updateList("")
-
-        dialog.setContentView(container)
-
+        dialog.setContentView(box)
         dialog.show()
-
-        val window = dialog.window
-
-        window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.90)
-                .toInt(),
-            (resources.displayMetrics.heightPixels * 0.85)
-                .toInt()
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.90).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
         )
     }
 
-    private fun startDualPlayback() {
+    private fun roundedBackground(color: Int, radius: Float): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = radius
+        }
 
-        val video =
-            selectedVideo ?: return
+    private fun styledField(hintText: String): EditText =
+        EditText(this).apply {
+            hint = hintText
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.GRAY)
+            setSingleLine(true)
+            background = roundedBackground(Color.rgb(16, 19, 25), 16f)
+            setPadding(18, 0, 18, 0)
+        }
 
-        val audio =
-            selectedAudio ?: return
-
-        dualPlayer?.release()
-
-        dualPlayer =
-            DualStreamPlayer(
-                this,
-                video.streamUrls,
-                audio.streamUrls
-            )
-
-        showPlayerScreen()
-
-        dualPlayer?.play()
+    private fun fieldParams() = LinearLayout.LayoutParams(-1, 54).apply {
+        bottomMargin = 12
     }
 
-    private fun showPlayerScreen() {
-
-        root = FrameLayout(this)
-        root.setBackgroundColor(Color.BLACK)
-
-        val videoView =
-            PlayerView(this)
-
-        videoView.useController = true
-        videoView.setBackgroundColor(Color.BLACK)
-
-        root.addView(
-            videoView,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
+    private fun styleButton(button: Button, primary: Boolean = false) {
+        button.isAllCaps = false
+        button.setTextColor(Color.WHITE)
+        button.textSize = 14f
+        button.background = roundedBackground(
+            if (primary) Color.rgb(65, 132, 225) else Color.rgb(32, 38, 48),
+            16f
         )
-
-        // قسم التحكم مقسم إلى صفين حتى تظهر جميع الأزرار،
-        // خصوصًا "تغيير الصوت"، على الهاتف وAndroid TV.
-        val controls = LinearLayout(this)
-        controls.orientation = LinearLayout.VERTICAL
-        controls.gravity = Gravity.CENTER
-        controls.setPadding(10, 10, 10, 10)
-        controls.setBackgroundColor(Color.argb(190, 0, 0, 0))
-
-        val row1 = LinearLayout(this)
-        row1.orientation = LinearLayout.HORIZONTAL
-        row1.gravity = Gravity.CENTER
-
-        val row2 = LinearLayout(this)
-        row2.orientation = LinearLayout.HORIZONTAL
-        row2.gravity = Gravity.CENTER
-
-        val delayMinus = Button(this)
-        delayMinus.text = "-0.5s"
-
-        val delayText = TextView(this)
-        delayText.text = "0.0s"
-        delayText.textSize = 18f
-        delayText.setTextColor(Color.WHITE)
-        delayText.gravity = Gravity.CENTER
-        delayText.setPadding(18, 0, 18, 0)
-
-        val delayPlus = Button(this)
-        delayPlus.text = "+0.5s"
-
-        val syncButton = Button(this)
-        syncButton.text = "مزامنة"
-
-        val changeVideoButton = Button(this)
-        changeVideoButton.text = "تغيير الفيديو"
-
-        val changeAudioButton = Button(this)
-        changeAudioButton.text = "تغيير الصوت"
-
-        val backButton = Button(this)
-        backButton.text = "رجوع"
-
-        row1.addView(delayMinus)
-        row1.addView(delayText)
-        row1.addView(delayPlus)
-        row1.addView(syncButton)
-
-        row2.addView(changeVideoButton)
-        row2.addView(changeAudioButton)
-        row2.addView(backButton)
-
-        controls.addView(row1)
-        controls.addView(row2)
-
-        val controlsParams =
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-
-        controlsParams.gravity =
-            Gravity.BOTTOM
-
-        root.addView(
-            controls,
-            controlsParams
-        )
-
-        delayMinus.setOnClickListener {
-
-            dualPlayer?.changeDelay(
-                -500
-            )
-
-            delayText.text =
-                dualPlayer?.getDelayText()
-                    ?: "0.0s"
-        }
-
-        delayPlus.setOnClickListener {
-
-            dualPlayer?.changeDelay(
-                500
-            )
-
-            delayText.text =
-                dualPlayer?.getDelayText()
-                    ?: "0.0s"
-        }
-
-        syncButton.setOnClickListener {
-
-            dualPlayer?.forceSync()
-
-            Toast.makeText(
-                this,
-                "تمت محاولة المزامنة",
-                Toast.LENGTH_SHORT
-            ).show()
-        }
-
-        changeVideoButton.setOnClickListener {
-            showChannelPicker("اختر قناة الفيديو الجديدة") { channel ->
-                selectedVideo = channel
-                val changed = dualPlayer?.switchVideo(channel.streamUrls) ?: false
-                if (changed) {
-                    Toast.makeText(
-                        this,
-                        "تم تغيير مصدر الفيديو إلى: " + channel.name,
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        }
-
-        changeAudioButton.setOnClickListener {
-            showChannelPicker("اختر مصدر الصوت الجديد") { channel ->
-                selectedAudio = channel
-                val changed = dualPlayer?.switchAudio(channel.streamUrls) ?: false
-                if (changed) {
-                    Toast.makeText(
-                        this,
-                        "تم تغيير مصدر الصوت إلى: " + channel.name,
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        }
-
-        backButton.setOnClickListener {
-
-            dualPlayer?.release()
-
-            dualPlayer = null
-
-            showChannelScreen()
-        }
-
-        setContentView(root)
-
-        dualPlayer?.attachVideoView(
-            videoView
-        )
-
-        delayText.text =
-            dualPlayer?.getDelayText()
-                ?: "0.0s"
+        button.stateListAnimator = null
     }
 
-    private fun normalizeServer(
-        server: String
-    ): String {
-
-        var value =
-            server.trim()
-
-        if (
-            !value.startsWith("http://") &&
-            !value.startsWith("https://")
-        ) {
-            value =
-                "http://$value"
+    private fun labelText(textValue: String, size: Float): TextView =
+        TextView(this).apply {
+            text = textValue
+            textSize = size
+            setTextColor(Color.GRAY)
         }
 
-        return value.trimEnd('/')
-    }
-}
 
-object XtreamApi {
-
-    fun getLiveChannels(
-        credentials: XtreamCredentials
-    ): List<Channel> {
-
-        val encodedUser =
-            URLEncoder.encode(
-                credentials.username,
-                "UTF-8"
-            )
-
-        val encodedPassword =
-            URLEncoder.encode(
-                credentials.password,
-                "UTF-8"
-            )
-
-        val apiUrl =
-            "${credentials.server}/player_api.php" +
-                    "?username=$encodedUser" +
-                    "&password=$encodedPassword" +
-                    "&action=get_live_streams"
-
-        val json =
-            request(apiUrl)
-
-        val array =
-            JSONArray(json)
-
-        val result =
-            ArrayList<Channel>()
-
-        for (i in 0 until array.length()) {
-
-            val item =
-                array.getJSONObject(i)
-
-            val id =
-                item.optString(
-                    "stream_id"
-                )
-
-            val name =
-                item.optString(
-                    "name"
-                )
-
-            if (
-                id.isBlank() ||
-                name.isBlank()
-            ) {
-                continue
-            }
-
-            val candidates = LinkedHashSet<String>()
-
-            // استخدم مسارات Xtream القياسية أولًا. بعض لوحات Xtream ترسل
-            // direct_source/stream_url غير صالحة أو غير قابلة للتشغيل بواسطة Media3.
-            candidates.add(
-                "${credentials.server}/live/" +
-                        "${credentials.username}/" +
-                        "${credentials.password}/" +
-                        "$id.ts"
-            )
-
-            candidates.add(
-                "${credentials.server}/live/" +
-                        "${credentials.username}/" +
-                        "${credentials.password}/" +
-                        "$id.m3u8"
-            )
-
-            candidates.add(
-                "${credentials.server}/live/" +
-                        "${credentials.username}/" +
-                        "${credentials.password}/" +
-                        id
-            )
-
-            // ثم جرّب المسارات التي ترسلها لوحة Xtream نفسها كاحتياط.
-            val directSource = item.optString("direct_source").trim()
-            val streamUrl = item.optString("stream_url").trim()
-
-            if (directSource.isNotBlank()) candidates.add(directSource)
-            if (streamUrl.isNotBlank()) candidates.add(streamUrl)
-
-            val urls = candidates.filter { it.isNotBlank() }
-            if (urls.isEmpty()) continue
-
-            result.add(
-                Channel(
-                    id = id,
-                    name = name,
-                    streamUrl = urls.first(),
-                    streamUrls = urls
-                )
-            )
-        }
-
-        return result
-    }
-
-    private fun request(
-        urlString: String
-    ): String {
-
-        val connection =
-            URL(urlString)
-                .openConnection()
-                    as HttpURLConnection
-
-        connection.requestMethod =
-            "GET"
-
-        connection.connectTimeout =
-            15000
-
-        connection.readTimeout =
-            20000
-
-        connection.setRequestProperty(
-            "User-Agent",
-            "AudioMix IPTV"
-        )
-
-        try {
-
-            val responseCode =
-                connection.responseCode
-
-            if (
-                responseCode !in 200..299
-            ) {
-                throw Exception(
-                    "HTTP $responseCode"
-                )
-            }
-
-            return connection.inputStream
-                .bufferedReader()
-                .use {
-                    it.readText()
-                }
-
-        } finally {
-
-            connection.disconnect()
-        }
-    }
-}
-
-object DialogHelper {
-
-    fun createDialog(
-        context: Context
-    ): Dialog {
-
-        val dialog =
-            Dialog(context)
-
-        dialog.window
-            ?.setBackgroundDrawableResource(
-                android.R.color.transparent
-            )
-
-        return dialog
-    }
-}
