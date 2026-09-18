@@ -36,17 +36,17 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
                     totalBufferingMs += now - bufferingSinceMs
                     bufferingSinceMs = 0L
                 }
-                logSnapshot("state=${stateName(playbackState)}")
+                logSnapshot("state=\${stateName(playbackState)}")
             }
             override fun onIsLoadingChanged(isLoading: Boolean) {
                 lastLoading = isLoading
-                logSnapshot("loading=$isLoading")
+                logSnapshot("loading=\$isLoading")
             }
             override fun onPlayerError(error: PlaybackException) {
-                Log.e(TAG, "$tag error=${error.errorCodeName} message=${error.message}", error)
+                Log.e(TAG, "\$tag error=\${error.errorCodeName} message=\${error.message}", error)
             }
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                Log.d(TAG, "$tag video=${videoSize.width}x${videoSize.height} pixelRatio=${videoSize.pixelWidthHeightRatio}")
+                Log.d(TAG, "\$tag video=\${videoSize.width}x\${videoSize.height} pixelRatio=\${videoSize.pixelWidthHeightRatio}")
             }
             override fun onRenderedFirstFrame() {
                 if (firstFrameAtMs == 0L) firstFrameAtMs = SystemClock.elapsedRealtime()
@@ -75,13 +75,7 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
             androidx.media3.common.C.TRACK_TYPE_AUDIO -> "AUDIO"
             else -> "TRACK"
         }
-        Log.d(
-            TAG,
-            "$tag format=$kind mime=${format.sampleMimeType} " +
-                "bitrate=${format.bitrate}bps width=${format.width} height=${format.height} " +
-                "fps=${format.frameRate} audioRate=${format.sampleRate} channels=${format.channelCount} " +
-                "codecs=${format.codecs}"
-        )
+        Log.d(TAG, "\$tag format=\$kind mime=\${format.sampleMimeType} bitrate=\${format.bitrate}bps width=\${format.width} height=\${format.height} fps=\${format.frameRate} audioRate=\${format.sampleRate} channels=\${format.channelCount} codecs=\${format.codecs}")
     }
 
     override fun onLoadCompleted(
@@ -92,23 +86,8 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
         networkMetrics.record(loadEventInfo)
         val snapshot = networkMetrics.snapshot()
         if (snapshot.loadCount == 1L || snapshot.loadCount % 5L == 0L) {
-            logSnapshot("network throughputKbps=${snapshot.lastThroughputKbps} avgKbps=${snapshot.averageThroughputKbps} peakKbps=${snapshot.peakThroughputKbps} loadMs=${snapshot.lastLoadDurationMs}")
+            logSnapshot("network throughputKbps=\${snapshot.lastThroughputKbps} avgKbps=\${snapshot.averageThroughputKbps} peakKbps=\${snapshot.peakThroughputKbps} loadMs=\${snapshot.lastLoadDurationMs}")
         }
-    }
-
-    override fun onDecoderCountersUpdated(
-        eventTime: AnalyticsListener.EventTime,
-        decoderCounters: androidx.media3.decoder.DecoderCounters
-    ) {
-        decoderCounters.ensureUpdated()
-        Log.d(
-            TAG,
-            "$tag decoder rendered=${decoderCounters.renderedOutputBufferCount} " +
-                "skipped=${decoderCounters.skippedOutputBufferCount} " +
-                "dropped=${decoderCounters.droppedBufferCount} " +
-                "maxConsecutiveDropped=${decoderCounters.maxConsecutiveDroppedBufferCount} " +
-                "input=${decoderCounters.inputBufferCount}"
-        )
     }
 
     override fun onAudioUnderrun(
@@ -117,11 +96,7 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
         bufferSizeMs: Long,
         elapsedSinceLastFeedMs: Long
     ) {
-        Log.w(
-            TAG,
-            "$tag AUDIO_UNDERRUN bufferSize=$bufferSize bufferMs=$bufferSizeMs " +
-                "elapsedSinceLastFeedMs=$elapsedSinceLastFeedMs"
-        )
+        Log.w(TAG, "\$tag AUDIO_UNDERRUN bufferSize=\$bufferSize bufferMs=\$bufferSizeMs elapsedSinceLastFeedMs=\$elapsedSinceLastFeedMs")
     }
 
     override fun onDroppedVideoFrames(
@@ -130,14 +105,14 @@ class PlaybackDiagnostics(private val tag: String) : AnalyticsListener {
         elapsedMs: Long
     ) {
         droppedFramesTotal += droppedFrames.toLong()
-        Log.w(TAG, "$tag droppedFrames=$droppedFrames totalDropped=$droppedFramesTotal elapsedMs=$elapsedMs")
+        Log.w(TAG, "\$tag droppedFrames=\$droppedFrames totalDropped=\$droppedFramesTotal elapsedMs=\$elapsedMs")
     }
 
     private fun logSnapshot(reason: String) {
         val p = player ?: return
         val bufferMs = (p.bufferedPosition - p.currentPosition).coerceAtLeast(0L)
         val network = networkMetrics.snapshot()
-        Log.d(TAG, "$tag reason=$reason state=${stateName(lastState)} playing=${p.isPlaying} loading=$lastLoading position=${p.currentPosition} buffered=${p.bufferedPosition} bufferMs=$bufferMs liveOffset=${p.currentLiveOffset} totalBufferingMs=$totalBufferingMs bytes=${network.totalBytes} avgKbps=${network.averageThroughputKbps} lastKbps=${network.lastThroughputKbps} peakKbps=${network.peakThroughputKbps} loads=${network.loadCount} droppedFrames=$droppedFramesTotal firstFrameAt=$firstFrameAtMs")
+        Log.d(TAG, "\$tag reason=\$reason state=\${stateName(lastState)} playing=\${p.isPlaying} loading=\$lastLoading position=\${p.currentPosition} buffered=\${p.bufferedPosition} bufferMs=\$bufferMs liveOffset=\${p.currentLiveOffset} totalBufferingMs=\$totalBufferingMs bytes=\${network.totalBytes} avgKbps=\${network.averageThroughputKbps} lastKbps=\${network.lastThroughputKbps} peakKbps=\${network.peakThroughputKbps} loads=\${network.loadCount} droppedFrames=\$droppedFramesTotal firstFrameAt=\$firstFrameAtMs")
     }
 
     private fun stateName(state: Int): String = when (state) {
