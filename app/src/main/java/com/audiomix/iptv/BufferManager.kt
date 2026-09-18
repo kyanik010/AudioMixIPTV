@@ -66,16 +66,16 @@ class BufferManager(context: Context) {
         val memoryClassMb = context.getSystemService(ActivityManager::class.java)?.memoryClass ?: 256
         return when {
             memoryClassMb <= 192 -> Profile(
-                10_000, 40_000, 2_500, 5_000,
-                5_000, 18_000, 1_500, 3_000
+                10_000, 35_000, 2_500, 5_000,
+                4_000, 10_000, 1_500, 3_000
             )
             memoryClassMb <= 256 -> Profile(
-                12_000, 50_000, 3_000, 6_000,
-                6_000, 20_000, 1_500, 3_500
+                12_000, 45_000, 3_000, 6_000,
+                5_000, 12_000, 1_500, 3_500
             )
             else -> Profile(
-                15_000, 60_000, 3_000, 7_000,
-                7_000, 24_000, 2_000, 4_000
+                15_000, 50_000, 3_000, 7_000,
+                6_000, 14_000, 2_000, 4_000
             )
         }
     }
