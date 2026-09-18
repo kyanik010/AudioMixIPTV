@@ -28,6 +28,7 @@ class DualStreamPlayer(
 ) {
     private val bufferManager = BufferManager(context)
     private val bandwidthMeter = DefaultBandwidthMeter.Builder(context).build()
+    private val adaptiveNetwork = AdaptiveNetworkController(bandwidthMeter)
     private val recovery = RecoverySystem()
     private val handler = Handler(Looper.getMainLooper())
 
@@ -68,6 +69,11 @@ class DualStreamPlayer(
                         "VIDEO_STARVATION generation=$generation aheadMs=$videoAheadMs graceMs=$grace " +
                             "profile=${bufferManager.profileDescription()}"
                     )
+                    val decision = adaptiveNetwork.evaluate(videoPlayer, true, videoAheadMs)
+                    if (!decision.allowRecovery) {
+                        videoBufferingSince = now
+                        return@Runnable
+                    }
                     recovery.retry(
                         "video-starvation",
                         generation,
