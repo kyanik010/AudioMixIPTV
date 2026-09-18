@@ -156,6 +156,11 @@ class DualStreamPlayer(
                         " buffer=" + videoPlayer.bufferedPosition +
                         " position=" + videoPlayer.currentPosition
                 )
+                if (state == Player.STATE_READY) {
+                    recovery.resetAllFor("video")
+                    videoBufferingSince = 0L
+                }
+                if (state != Player.STATE_BUFFERING) videoBufferingSince = 0L
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
