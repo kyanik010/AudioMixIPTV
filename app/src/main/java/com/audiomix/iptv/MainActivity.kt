@@ -947,28 +947,34 @@ class DualStreamPlayer(
                 .build()
         )
 
+        // البث هنا عبارة عن مصدرين Live مستقلين. نحتاج مخزونًا أكبر من البيانات
+        // حتى لا يصل المشغل إلى الصفر ثم يتوقف عدة ثوانٍ لإعادة ملء الـbuffer.
         fun newLoadControl() = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                10_000,
                 30_000,
-                1_500,
-                3_000
+                120_000,
+                5_000,
+                10_000
             )
             .setPrioritizeTimeOverSizeThresholds(true)
+            .setBackBuffer(30_000, false)
             .build()
 
-        val renderersFactory = DefaultRenderersFactory(context)
+        // RenderersFactory مستقل لكل مشغل لتقليل التداخل بين الفيديو والصوت.
+        fun newRenderersFactory() = DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true)
 
         videoPlayer = ExoPlayer.Builder(context)
             .setLoadControl(newLoadControl())
-            .setRenderersFactory(renderersFactory)
+            .setRenderersFactory(newRenderersFactory())
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
 
         audioPlayer = ExoPlayer.Builder(context)
             .setTrackSelector(audioSelector)
             .setLoadControl(newLoadControl())
-            .setRenderersFactory(renderersFactory)
+            .setRenderersFactory(newRenderersFactory())
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
 
         configurePlayers()
@@ -1000,6 +1006,20 @@ class DualStreamPlayer(
         videoPlayer.volume = 0f
         audioPlayer.volume = 1f
         audioPlayer.setSkipSilenceEnabled(false)
+
+        videoPlayer.addListener(object : androidx.media3.common.Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                Log.d(
+                    TAG,
+                    "Video state=$state buffered=" + videoPlayer.bufferedPosition +
+                            " duration=" + videoPlayer.duration
+                )
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                Log.e(TAG, "Video playback error code=" + error.errorCodeName, error)
+            }
+        })
 
         videoPlayer.setMediaItem(createMediaItem(videoUrls.first()))
         videoPlayer.prepare()
