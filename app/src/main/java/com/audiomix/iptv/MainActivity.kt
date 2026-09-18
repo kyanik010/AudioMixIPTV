@@ -339,7 +339,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAudioMixPicker() {
         val video = selectedVideo ?: return
-        val dialog = DialogHelper.createDialog(this)
+        val dialog = Dialog(this)
         val box = LinearLayout(this)
         box.orientation = LinearLayout.VERTICAL
         box.setPadding(24, 24, 24, 24)
@@ -516,7 +516,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSettingsDialog() {
-        val dialog = DialogHelper.createDialog(this)
+        val dialog = Dialog(this)
         val box = LinearLayout(this)
         box.orientation = LinearLayout.VERTICAL
         box.setPadding(24, 24, 24, 24)
@@ -600,6 +600,92 @@ class MainActivity : AppCompatActivity() {
             text = textValue
             textSize = size
             setTextColor(Color.GRAY)
+        
+    private fun buildSelectionText(): String =
+        "🎥 Video: " + (selectedVideo?.name ?: "غير محدد") +
+        "\n🔊 Audio: " + (selectedAudio?.name ?: "غير محدد")
+
+    private fun normalizeServer(value: String): String = value.trim().removeSuffix("/")
+
+    private fun showChannelPicker(titleText: String, onSelected: (Channel) -> Unit) {
+        val dialog = Dialog(this)
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(22, 22, 22, 22)
+            background = roundedBackground(Color.rgb(16, 19, 25), 24f)
         }
+        val title = labelText(titleText, 21f).apply { typeface = Typeface.DEFAULT_BOLD }
+        box.addView(title)
+        val search = styledField("بحث في القنوات...")
+        box.addView(search, LinearLayout.LayoutParams(-1, 54).apply { topMargin = 12 })
+        val list = ListView(this)
+        box.addView(list, LinearLayout.LayoutParams(-1, 480).apply { topMargin = 10 })
+
+        fun refresh() {
+            val q = search.text.toString().trim()
+            val filtered = if (q.isBlank()) channels else channels.filter { it.name.contains(q, ignoreCase = true) }
+            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, filtered.take(1200).map { it.name })
+            list.setOnItemClickListener { _, _, position, _ ->
+                onSelected(filtered[position])
+                dialog.dismiss()
+            }
+        }
+        search.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { refresh() }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
+        dialog.setContentView(box)
+        dialog.show()
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.92).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
+        refresh()
+    }
+
+    private fun startDualPlayback() {
+        val video = selectedVideo ?: return
+        val audio = selectedAudio ?: return
+        dualPlayer?.release()
+        dualPlayer = try {
+            DualStreamPlayer(this, video.streamUrls, audio.streamUrls)
+        } catch (e: Exception) {
+            Log.e("AudioMix-UI", "Failed to create player", e)
+            Toast.makeText(this, "تعذر تجهيز المشغل: " + (e.message ?: "غير معروف"), Toast.LENGTH_LONG).show()
+            null
+        }
+        if (dualPlayer != null) {
+            showPlayerScreen()
+            dualPlayer?.play()
+        }
+    }
+
+    private fun showSettingsDialog() {
+        val dialog = Dialog(this)
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 24, 24, 24)
+            background = roundedBackground(Color.rgb(16, 19, 25), 24f)
+        }
+        val title = labelText("AudioMix IPTV • الإعدادات", 22f).apply { typeface = Typeface.DEFAULT_BOLD }
+        box.addView(title)
+        val pro = Switch(this).apply {
+            text = "وضع Pro"
+            textSize = 16f
+            setTextColor(Color.WHITE)
+            isChecked = prefs.getBoolean("pro_mode", true)
+        }
+        box.addView(pro, LinearLayout.LayoutParams(-1, 54).apply { topMargin = 14 })
+        box.addView(labelText("جودة الفيديو لا تُجبر على 4K. المشغل يحافظ على جودة المصدر المتاحة.", 13f).apply {
+            setTextColor(Color.LTGRAY)
+        })
+        val clear = Button(this).apply { text = "مسح بيانات الاشتراك"; styleButton(this) }
+        box.addView(clear, LinearLayout.LayoutParams(-1, 52).apply { topMargin = 18 })
+        pro.setOnCheckedChangeListener { _, checked -> prefs.edit().putBoolean("pro_mode", checked).apply() }
+        clear.setOnClickListener { prefs.edit().clear().apply(); dialog.dismiss(); showLoginScreen() }
+        dialog.setContentView(box)
+        dialog.show()
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.88).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
+    }
+
+}
 
 
