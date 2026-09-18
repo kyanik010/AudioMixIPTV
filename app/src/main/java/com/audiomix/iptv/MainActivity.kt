@@ -689,3 +689,47 @@ class MainActivity : AppCompatActivity() {
 }
 
 
+
+
+private object XtreamApi {
+    fun getLiveChannels(credentials: XtreamCredentials): List<Channel> = loadLiveChannels(credentials)
+
+    fun loadLiveChannels(credentials: XtreamCredentials): List<Channel> {
+        val u = java.net.URLEncoder.encode(credentials.username, "UTF-8")
+        val p = java.net.URLEncoder.encode(credentials.password, "UTF-8")
+        val endpoint = "${credentials.server}/player_api.php?username=$u&password=$p&action=get_live_streams"
+        val connection = (java.net.URL(endpoint).openConnection() as java.net.HttpURLConnection).apply {
+            connectTimeout = 15_000
+            readTimeout = 20_000
+            requestMethod = "GET"
+            setRequestProperty("User-Agent", "AudioMix IPTV/1.0")
+        }
+        return try {
+            if (connection.responseCode !in 200..299) return emptyList()
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            val array = org.json.JSONArray(body)
+            val result = ArrayList<Channel>(array.length())
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                val id = item.optString("stream_id").trim()
+                if (id.isBlank()) continue
+                val name = item.optString("name").trim().ifBlank { "Channel $id" }
+                val icon = item.optString("stream_icon").trim()
+                val categoryId = item.optString("category_id").trim()
+                val categoryName = item.optString("category_name").trim()
+                val base = credentials.server
+                val user = credentials.username
+                val pass = credentials.password
+                val urls = listOf(
+                    "$base/live/$user/$pass/$id.m3u8",
+                    "$base/live/$user/$pass/$id.ts",
+                    "$base/live/$user/$pass/$id"
+                ).distinct()
+                result.add(Channel(id, name, urls.first(), urls, icon, categoryId, categoryName))
+            }
+            result
+        } finally {
+            connection.disconnect()
+        }
+    }
+}
