@@ -559,69 +559,67 @@ class DualStreamPlayer(
             standbyAudioPlayer = nextPlayer
 
             var handedOff = false
-            val handoffDeadlineMs = android.os.SystemClock.elapsedRealtime() + AUDIO_HANDOFF_MAX_WAIT_MS
+            val handoffDeadlineMs =
+                android.os.SystemClock.elapsedRealtime() + AUDIO_HANDOFF_MAX_WAIT_MS
             lateinit var handoff: () -> Unit
 
             fun scheduleHandoffCheck() {
-                if (released || handedOff || audioGeneration != generation || standbyAudioPlayer !== nextPlayer) return
+                if (released || handedOff || audioGeneration != generation || standbyAudioPlayer !== nextPlayer) {
+                    return
+                }
                 val now = android.os.SystemClock.elapsedRealtime()
                 if (now >= handoffDeadlineMs) {
                     handoff()
-                    return
+                } else {
+                    handler.postDelayed(handoff, AUDIO_HANDOFF_RECHECK_MS)
                 }
-                handler.postDelayed(handoff, AUDIO_HANDOFF_RECHECK_MS)
             }
 
             handoff = {
-                if (released || handedOff || audioGeneration != generation || standbyAudioPlayer !== nextPlayer) return@handoff
+                if (!released && !handedOff && audioGeneration == generation && standbyAudioPlayer === nextPlayer) {
+                    val state = nextPlayer.playbackState
+                    val ahead = (nextPlayer.bufferedPosition - nextPlayer.currentPosition)
+                        .coerceAtLeast(0L)
 
-                val state = nextPlayer.playbackState
-                val ahead = (nextPlayer.bufferedPosition - nextPlayer.currentPosition).coerceAtLeast(0L)
-                if (state != Player.STATE_READY || ahead < AUDIO_HANDOFF_MIN_BUFFER_MS) {
-                    scheduleHandoffCheck()
-                    return@handoff
-                }
+                    if (state == Player.STATE_READY && ahead >= AUDIO_HANDOFF_MIN_BUFFER_MS) {
+                        handedOff = true
 
-                handedOff = true
+                        nextPlayer.volume = 0f
+                        nextPlayer.playWhenReady = true
+                        nextPlayer.play()
 
-                val state = nextPlayer.playbackState
-                val ahead = (nextPlayer.bufferedPosition - nextPlayer.currentPosition).coerceAtLeast(0L)
-                if (state != Player.STATE_READY || ahead < AUDIO_HANDOFF_MIN_BUFFER_MS) {
-                    scheduleHandoffCheck()
-                    return
-                }
+                        audioPlayer = nextPlayer
+                        standbyAudioPlayer = null
+                        syncEngine.switchAudioPlayer(nextPlayer)
 
-                handedOff = true
-
-                nextPlayer.volume = 0f
-                nextPlayer.playWhenReady = true
-                nextPlayer.play()
-
-                audioPlayer = nextPlayer
-                standbyAudioPlayer = null
-                syncEngine.switchAudioPlayer(nextPlayer)
-
-                val startVolume = oldPlayer.volume
-                val steps = 6
-                for (i in 1..steps) {
-                    handler.postDelayed({
-                        if (!released) {
-                            nextPlayer.volume = (i.toFloat() / steps).coerceIn(0f, 1f)
-                            oldPlayer.volume = (startVolume * (1f - i.toFloat() / steps)).coerceAtLeast(0f)
+                        val startVolume = oldPlayer.volume
+                        val steps = 6
+                        for (i in 1..steps) {
+                            handler.postDelayed({
+                                if (!released) {
+                                    nextPlayer.volume = (i.toFloat() / steps).coerceIn(0f, 1f)
+                                    oldPlayer.volume =
+                                        (startVolume * (1f - i.toFloat() / steps)).coerceAtLeast(0f)
+                                }
+                            }, i * 50L)
                         }
-                    }, i * 50L)
+
+                        handler.postDelayed({
+                            oldPlayer.stop()
+                            oldPlayer.release()
+                        }, (steps * 50L) + 150L)
+
+                        handler.postDelayed({
+                            if (!released && audioGeneration == generation) {
+                                syncEngine.forceSync()
+                            }
+                        }, 900L)
+
+                        Log.d(TAG, "Audio source handoff completed generation=$generation")
+                    } else {
+                        scheduleHandoffCheck()
+                    }
                 }
-
-                handler.postDelayed({
-                    oldPlayer.stop()
-                    oldPlayer.release()
-                }, (steps * 50L) + 150L)
-
-                handler.postDelayed({
-                    if (!released && audioGeneration == generation) syncEngine.forceSync()
-                }, 900L)
-
-                Log.d(TAG, "Audio source handoff completed generation=$generation")
             }
 
             nextPlayer.addListener(object : Player.Listener {
