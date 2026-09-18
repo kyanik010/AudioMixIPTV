@@ -25,7 +25,7 @@ class DualStreamPlayer(
     initialVideoUrls: List<String>,
     initialAudioUrls: List<String>
 ) {
-    private val bufferManager = BufferManager()
+    private val bufferManager = BufferManager(context)
     private val recovery = RecoverySystem()
     private val handler = Handler(Looper.getMainLooper())
 
@@ -52,14 +52,20 @@ class DualStreamPlayer(
 
             val now = android.os.SystemClock.elapsedRealtime()
 
+            val videoAheadMs = (videoPlayer.bufferedPosition - videoPlayer.currentPosition).coerceAtLeast(0L)
             if (videoPlayer.playbackState == Player.STATE_BUFFERING &&
                 videoPlayer.isLoading &&
-                (videoPlayer.bufferedPosition - videoPlayer.currentPosition) <= 500L
+                videoAheadMs <= 1_500L
             ) {
                 if (videoBufferingSince == 0L) videoBufferingSince = now
-                if (now - videoBufferingSince >= 6_000L) {
+                val grace = bufferManager.starvationGraceMs(true, videoAheadMs)
+                if (now - videoBufferingSince >= grace) {
                     val generation = videoGeneration
-                    Log.w(TAG, "VIDEO_STARVATION generation=$generation")
+                    Log.w(
+                        TAG,
+                        "VIDEO_STARVATION generation=$generation aheadMs=$videoAheadMs graceMs=$grace " +
+                            "profile=${bufferManager.profileDescription()}"
+                    )
                     recovery.retry(
                         "video-starvation",
                         generation,
@@ -77,14 +83,20 @@ class DualStreamPlayer(
                 videoBufferingSince = 0L
             }
 
+            val audioAheadMs = (audioPlayer.bufferedPosition - audioPlayer.currentPosition).coerceAtLeast(0L)
             if (audioPlayer.playbackState == Player.STATE_BUFFERING &&
                 audioPlayer.isLoading &&
-                (audioPlayer.bufferedPosition - audioPlayer.currentPosition) <= 500L
+                audioAheadMs <= 1_000L
             ) {
                 if (audioBufferingSince == 0L) audioBufferingSince = now
-                if (now - audioBufferingSince >= 6_000L) {
+                val grace = bufferManager.starvationGraceMs(false, audioAheadMs)
+                if (now - audioBufferingSince >= grace) {
                     val generation = audioGeneration
-                    Log.w(TAG, "AUDIO_STARVATION generation=$generation")
+                    Log.w(
+                        TAG,
+                        "AUDIO_STARVATION generation=$generation aheadMs=$audioAheadMs graceMs=$grace " +
+                            "profile=${bufferManager.profileDescription()}"
+                    )
                     recovery.retry(
                         "audio-starvation",
                         generation,
