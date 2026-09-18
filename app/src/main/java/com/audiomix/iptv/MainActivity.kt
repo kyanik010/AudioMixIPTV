@@ -934,7 +934,7 @@ class DualStreamPlayer(
 
     private val videoPlayer: ExoPlayer
     private val audioPlayer: ExoPlayer
-    private val audioCandidates = audioUrls.distinct().filter { it.isNotBlank() }
+    private var audioCandidates = audioUrls.distinct().filter { it.isNotBlank() }
     private var audioCandidateIndex = 0
     private var currentAudioUrl: String? = null
     private var manualDelayMs = 0L
@@ -1177,15 +1177,10 @@ class DualStreamPlayer(
         if (urls.isEmpty()) return false
 
         return try {
-            audioPlayer.stop()
-            audioPlayer.clearMediaItems()
-            currentAudioUrl = urls.first()
-            audioPlayer.setMediaItem(createMediaItem(urls.first()))
-            audioPlayer.volume = 1f
-            audioPlayer.setSkipSilenceEnabled(false)
-            audioPlayer.prepare()
-            audioPlayer.playWhenReady = true
-            audioPlayer.play()
+            audioCandidates = urls
+            audioCandidateIndex = 0
+            audioErrorShown = false
+            playAudioCandidate(0)
 
             handler.postDelayed(
                 { if (!released) synchronize(force = true) },
