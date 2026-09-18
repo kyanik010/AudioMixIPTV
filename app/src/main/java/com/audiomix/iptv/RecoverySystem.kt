@@ -7,6 +7,7 @@ import android.util.Log
 class RecoverySystem {
     private val handler = Handler(Looper.getMainLooper())
     private val attempts = mutableMapOf<String, Int>()
+    private val pending = mutableSetOf<String>()
     private var released = false
 
     companion object {
@@ -20,7 +21,7 @@ class RecoverySystem {
         isGenerationValid: () -> Boolean = { true },
         action: () -> Unit
     ) {
-        if (released || !isGenerationValid()) return
+        if (released || !isGenerationValid() || pending.contains(key)) return
 
         val attempt = (attempts[key] ?: 0) + 1
         attempts[key] = attempt
@@ -37,7 +38,9 @@ class RecoverySystem {
         }
 
         Log.w(TAG, "Recovery $key generation=$generation attempt=$attempt delay=$delay")
+        pending.add(key)
         handler.postDelayed({
+            pending.remove(key)
             if (!released && isGenerationValid()) {
                 action()
             } else {
@@ -48,17 +51,19 @@ class RecoverySystem {
 
     fun reset(key: String) {
         attempts.remove(key)
+        pending.remove(key)
     }
 
     fun resetAllFor(keyPrefix: String) {
         attempts.keys.filter { it == keyPrefix || it.startsWith("$keyPrefix-") }
             .toList()
-            .forEach { attempts.remove(it) }
+            .forEach { attempts.remove(it); pending.remove(it) }
     }
 
     fun release() {
         released = true
         handler.removeCallbacksAndMessages(null)
         attempts.clear()
+        pending.clear()
     }
 }
