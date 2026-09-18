@@ -30,6 +30,8 @@ class DualStreamPlayer(
     private val handler = Handler(Looper.getMainLooper())
 
     private var released = false
+    private var videoGeneration = 0L
+    private var audioGeneration = 0L
     private var audioErrorShown = false
     private var videoUrls = initialVideoUrls.distinct().filter { it.isNotBlank() }
     private var audioUrls = initialAudioUrls.distinct().filter { it.isNotBlank() }
@@ -165,8 +167,9 @@ class DualStreamPlayer(
                 if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                     recoverBehindLiveWindow(videoPlayer, "video")
                 } else {
-                    recovery.retry("video") {
-                        if (!released) {
+                    val generation = videoGeneration
+                    recovery.retry("video", generation, { videoGeneration == generation }) {
+                        if (!released && videoGeneration == generation) {
                             videoPlayer.prepare()
                             videoPlayer.playWhenReady = true
                             videoPlayer.play()
@@ -176,7 +179,7 @@ class DualStreamPlayer(
             }
 
             override fun onRenderedFirstFrame() {
-                recovery.reset("video")
+                recovery.resetAllFor("video")
             }
         })
 
@@ -190,7 +193,7 @@ class DualStreamPlayer(
                         " position=" + audioPlayer.currentPosition +
                         " url=" + currentAudioUrl
                 )
-                if (state == Player.STATE_READY) recovery.reset("audio")
+                if (state == Player.STATE_READY) recovery.resetAllFor("audio")
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -213,8 +216,9 @@ class DualStreamPlayer(
     }
 
     private fun recoverBehindLiveWindow(player: ExoPlayer, key: String) {
-        recovery.retry(key + "-live") {
-            if (released) return@retry
+        val generation = if (key == "video") videoGeneration else audioGeneration
+        recovery.retry(key + "-live", generation, { if (key == "video") videoGeneration == generation else audioGeneration == generation }) {
+            if (released || (key == "video" && videoGeneration != generation) || (key == "audio" && audioGeneration != generation)) return@retry
             player.seekToDefaultPosition()
             player.prepare()
             player.playWhenReady = true
@@ -278,13 +282,15 @@ class DualStreamPlayer(
         if (urls.isEmpty()) return false
 
         videoUrls = urls
+        val generation = ++videoGeneration
+        recovery.resetAllFor("video")
         return try {
             videoPlayer.stop()
             videoPlayer.clearMediaItems()
             prepareVideo(videoUrls.first())
             videoPlayer.play()
             handler.postDelayed({
-                if (!released) syncEngine.forceSync()
+                if (!released && videoGeneration == generation) syncEngine.forceSync()
             }, 1_500L)
             true
         } catch (e: Exception) {
@@ -301,7 +307,8 @@ class DualStreamPlayer(
         audioUrls = urls
         audioIndex = 0
         audioErrorShown = false
-        recovery.reset("audio")
+        val generation = ++audioGeneration
+        recovery.resetAllFor("audio")
 
         return try {
             audioPlayer.stop()
@@ -309,7 +316,7 @@ class DualStreamPlayer(
             prepareAudio(audioUrls.first())
             audioPlayer.play()
             handler.postDelayed({
-                if (!released) syncEngine.forceSync()
+                if (!released && audioGeneration == generation) syncEngine.forceSync()
             }, 1_500L)
             true
         } catch (e: Exception) {
@@ -323,7 +330,9 @@ class DualStreamPlayer(
         val next = audioIndex + 1
         if (next < audioUrls.size) {
             audioIndex = next
-            Log.w(TAG, "Audio candidate failed: " + reason + "; trying #" + audioIndex)
+            val generation = ++audioGeneration
+            recovery.resetAllFor("audio")
+            Log.w(TAG, "Audio candidate failed: " + reason + "; generation=" + generation + "; trying #" + audioIndex)
             audioPlayer.stop()
             audioPlayer.clearMediaItems()
             prepareAudio(audioUrls[audioIndex])
