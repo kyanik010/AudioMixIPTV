@@ -100,6 +100,16 @@ class DualStreamPlayer(
                 if (audioBufferingSince == 0L) audioBufferingSince = now
                 val grace = bufferManager.starvationGraceMs(false, audioAheadMs)
                 if (now - audioBufferingSince >= grace) {
+                    val decision = adaptiveNetwork.evaluate(
+                        audioPlayer,
+                        false,
+                        audioAheadMs,
+                        audioDiagnostics.networkSnapshot()
+                    )
+                    if (!decision.allowRecovery) {
+                        audioBufferingSince = now
+                        return
+                    }
                     val generation = audioGeneration
                     Log.w(
                         TAG,
