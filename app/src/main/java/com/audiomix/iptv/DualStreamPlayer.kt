@@ -147,26 +147,31 @@ class DualStreamPlayer(
                         audioAheadMs,
                         audioDiagnostics.networkSnapshot()
                     )
-                    if (!decision.allowRecovery) {
-                        audioBufferingSince = now
-                        return
-                    }
-                    val generation = audioGeneration
-                    Log.w(
-                        TAG,
-                        "AUDIO_STARVATION generation=$generation aheadMs=$audioAheadMs graceMs=$grace " +
-                            "profile=${bufferManager.profileDescription()}"
-                    )
-                    recovery.retry(
-                        "audio-starvation",
-                        generation,
-                        { audioGeneration == generation }
-                    ) {
-                        if (!released && audioGeneration == generation) {
-                            audioPlayer.prepare()
-                            audioPlayer.playWhenReady = true
-                            audioPlayer.play()
+                    if (decision.allowRecovery) {
+                        val generation = audioGeneration
+                        Log.w(
+                            TAG,
+                            "AUDIO_STARVATION generation=" + generation + " aheadMs=" + audioAheadMs + " graceMs=" + grace +
+                                " profile=" + bufferManager.profileDescription()
+                        )
+                        recovery.retry(
+                            "audio-starvation",
+                            generation,
+                            { audioGeneration == generation }
+                        ) {
+                            if (!released && audioGeneration == generation) {
+                                audioPlayer.prepare()
+                                audioPlayer.playWhenReady = true
+                                audioPlayer.play()
+                            }
                         }
+                    } else {
+                        Log.d(
+                            TAG,
+                            "AUDIO_STARVATION recovery deferred reason=" + decision.reason +
+                                " throughputKbps=" + decision.throughputKbps +
+                                " bitrateKbps=" + decision.bitrateKbps
+                        )
                     }
                     audioBufferingSince = now
                 }
