@@ -169,28 +169,18 @@ class DualStreamPlayer(
                 videoNetwork = videoDiagnostics.networkSnapshot(),
                 audioNetwork = audioDiagnostics.networkSnapshot()
             )
-            if (contention.protectingVideo && !audioNetworkYielding) {
-                audioNetworkYielding = true
-                audioPlayer.playWhenReady = false
-                audioPlayer.pause()
+            // Never pause the secondary audio stream to protect video.
+            // Doing so creates an audible hole and artificial sync drift.
+            if (contention.protectingVideo) {
                 Log.w(
                     TAG,
-                    "NETWORK_PROTECTION yieldAudio=true reason=${contention.reason} " +
+                    "NETWORK_PROTECTION advisory-only reason=${contention.reason} " +
                         "videoBufferMs=${contention.videoBufferMs} videoBitrateKbps=${contention.videoBitrateKbps} " +
-                        "videoThroughputKbps=${contention.videoThroughputKbps}"
-                )
-            } else if (!contention.protectingVideo && audioNetworkYielding) {
-                audioNetworkYielding = false
-                audioPlayer.playWhenReady = true
-                audioPlayer.play()
-                Log.i(
-                    TAG,
-                    "NETWORK_PROTECTION yieldAudio=false videoBufferMs=${contention.videoBufferMs}"
+                        "videoThroughputKbps=${contention.videoThroughputKbps} audioBufferMs=${audioAheadMs}"
                 )
             }
-            if (audioNetworkYielding) {
-                audioBufferingSince = 0L
-            } else if (audioPlayer.playbackState == Player.STATE_BUFFERING &&
+            audioNetworkYielding = false
+            if (audioPlayer.playbackState == Player.STATE_BUFFERING &&
                 audioPlayer.isLoading &&
                 audioAheadMs <= 1_000L
             ) {
