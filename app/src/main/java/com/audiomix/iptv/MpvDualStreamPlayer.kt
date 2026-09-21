@@ -96,7 +96,7 @@ class MpvDualStreamPlayer(
         if (released || newUrl.isBlank()) return
         val oldUrl = audioUrl
         audioUrl = newUrl
-        runCatching { mpv.command(arrayOf("audio-remove", "auto")) }
+        runCatching { mpv.command(arrayOf("audio-remove")) }
             .onFailure { Log.w(TAG, "audio-remove failed; loading new external audio", it) }
         mpv.command(arrayOf("audio-add", newUrl, "select"))
         applyDelay()
