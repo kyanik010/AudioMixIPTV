@@ -252,7 +252,7 @@ class MainActivity : AppCompatActivity() {
         minus.setOnClickListener { player?.changeDelay(-500); delay.text = player?.getDelayText() ?: "0.0s" }
         plus.setOnClickListener { player?.changeDelay(500); delay.text = player?.getDelayText() ?: "0.0s" }
         sync.setOnClickListener { player?.forceSync(); toast("تمت محاولة المزامنة") }
-        audio.setOnClickListener { pickChannel("مصدر الصوت الجديد") { selectedAudio = it; if (run { player?.changeAudio(it.streamUrls.first()); true } == true) toast("تم تبديل الصوت") } }
+        audio.setOnClickListener { pickChannel("مصدر الصوت الجديد") { selectedAudio = it; player?.changeAudio(it.streamUrls.first()); toast("تم تبديل الصوت") } }
         back.setOnClickListener { player?.release(); player = null; showChannels() }
         mix.setOnClickListener { showAudioPicker() }
         setContentView(root)
