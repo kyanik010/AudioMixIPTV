@@ -13,7 +13,8 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import androidx.media3.ui.PlayerView
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
@@ -35,7 +36,7 @@ class MainActivity : AppCompatActivity() {
     private var channels: List<Channel> = emptyList()
     private var selectedVideo: Channel? = null
     private var selectedAudio: Channel? = null
-    private var player: DualStreamPlayer? = null
+    private var player: MpvDualStreamPlayer? = null
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -219,14 +220,22 @@ class MainActivity : AppCompatActivity() {
         val v = selectedVideo ?: run { toast("اختر الفيديو أولًا"); return }
         val a = selectedAudio ?: run { toast("اختر الصوت أولًا"); return }
         player?.release()
-        player = try { DualStreamPlayer(this, v.streamUrls, a.streamUrls) } catch (e: Exception) { toast("تعذر تجهيز المشغل: ${e.message ?: "غير معروف"}"); null }
+        player = try { MpvDualStreamPlayer(this, v.streamUrls.first(), a.streamUrls.first()) } catch (e: Exception) { toast("تعذر تجهيز المشغل: ${e.message ?: "غير معروف"}"); null }
         if (player != null) showPlayer()
     }
 
     private fun showPlayer() {
         root = FrameLayout(this); root.setBackgroundColor(Color.BLACK)
-        val view = PlayerView(this).apply { useController = true; setBackgroundColor(Color.BLACK) }
+        val view = SurfaceView(this).apply { setBackgroundColor(Color.BLACK) }
         root.addView(view, FrameLayout.LayoutParams(-1, -1))
+        view.holder.addCallback(object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder) {
+                player?.attachSurface(holder.surface)
+                player?.play()
+            }
+            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
+            override fun surfaceDestroyed(holder: SurfaceHolder) = Unit
+        })
         val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(d(10), d(8), d(10), d(8)); setBackgroundColor(Color.argb(180, 0, 0, 0)) }
         bar.addView(title("AudioMix IPTV", 18f), lp(0, 50, weight = 1f))
         val mix = Button(this).apply { text = "AudioMix"; style(this, true) }; bar.addView(mix, lp(105, 46))
@@ -243,11 +252,10 @@ class MainActivity : AppCompatActivity() {
         minus.setOnClickListener { player?.changeDelay(-500); delay.text = player?.getDelayText() ?: "0.0s" }
         plus.setOnClickListener { player?.changeDelay(500); delay.text = player?.getDelayText() ?: "0.0s" }
         sync.setOnClickListener { player?.forceSync(); toast("تمت محاولة المزامنة") }
-        audio.setOnClickListener { pickChannel("مصدر الصوت الجديد") { selectedAudio = it; if (player?.switchAudio(it.streamUrls) == true) toast("تم تبديل الصوت") } }
+        audio.setOnClickListener { pickChannel("مصدر الصوت الجديد") { selectedAudio = it; if (run { player?.changeAudio(it.streamUrls.first()); true } == true) toast("تم تبديل الصوت") } }
         back.setOnClickListener { player?.release(); player = null; showChannels() }
         mix.setOnClickListener { showAudioPicker() }
         setContentView(root)
-        player?.attachVideoView(view)
         player?.play()
     }
 
