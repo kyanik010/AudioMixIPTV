@@ -1,44 +1,28 @@
-name: Build AudioMix IPTV
-# CI trigger refresh: keep push builds enabled for every main commit.
-# Playback stability build after live-stream recovery and sync hardening.
+name: Android Build
 
 on:
-  workflow_dispatch:
   push:
-    branches: [main]
-
-permissions:
-  contents: read
+    branches: ["**"]
+  pull_request:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
         with:
-          packages: platform-tools
-      - name: Install Android SDK packages
-        run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
-      - name: Install Gradle 8.11.1
-        run: |
-          wget -q https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
-          unzip -q gradle-8.11.1-bin.zip
-          echo "$PWD/gradle-8.11.1/bin" >> "$GITHUB_PATH"
-      - name: Build Debug APK
-        run: gradle --no-daemon --stacktrace assembleDebug
+          gradle-version: "8.10.2"
+      - name: Build debug APK
+        run: gradle assembleDebug --stacktrace
+      - name: Run unit tests
+        run: gradle test --stacktrace
       - name: Upload APK
-        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: AudioMixIPTV-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: AudioMix-IPTV-debug
+          path: app/build/outputs/apk/debug/*.apk
