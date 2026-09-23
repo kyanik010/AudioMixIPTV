@@ -22,7 +22,7 @@ import java.util.concurrent.Executors
 
 /**
  * AudioMix IPTV main UI.
- * One Xtream subscription supplies both the video and audio channel lists.
+ * Two independent Xtream accounts supply separate video and audio channel lists.
  * Video quality is never forced to 4K; Media3 uses the stream's native quality.
  */
 class MainActivity : AppCompatActivity() {
@@ -110,8 +110,8 @@ class MainActivity : AppCompatActivity() {
             connect.isEnabled = false
             executor.execute {
                 try {
-                    val vc = XtreamClient().liveChannels(XtreamConfig(vs, vu, vp))
-                    val ac = XtreamClient().liveChannels(XtreamConfig(asrv, au, ap))
+                    val vc = XtreamApi.loadLiveChannels(XtreamCredentials(vs, vu, vp))
+                    val ac = XtreamApi.loadLiveChannels(XtreamCredentials(asrv, au, ap))
                     if (vc.isEmpty()) error("VIDEO_EMPTY")
                     if (ac.isEmpty()) error("AUDIO_EMPTY")
                     runOnUiThread {
