@@ -252,13 +252,17 @@ class MainActivity : AppCompatActivity() {
         val plus = Button(this).apply { text = "+0.5s"; style(this) }
         val sync = Button(this).apply { text = "مزامنة"; style(this, true) }
         val audio = Button(this).apply { text = "تغيير الصوت"; style(this) }
+        val removeAudio = Button(this).apply { text = "إزالة الصوت"; style(this) }
+        val reconnectAudio = Button(this).apply { text = "إعادة الصوت"; style(this) }
         val back = Button(this).apply { text = "رجوع"; style(this) }
-        bottom.addView(minus); bottom.addView(delay); bottom.addView(plus); bottom.addView(sync); bottom.addView(audio); bottom.addView(back)
+        bottom.addView(minus); bottom.addView(delay); bottom.addView(plus); bottom.addView(sync); bottom.addView(audio); bottom.addView(removeAudio); bottom.addView(reconnectAudio); bottom.addView(back)
         root.addView(bottom, FrameLayout.LayoutParams(-1, -2).apply { gravity = Gravity.BOTTOM })
         minus.setOnClickListener { player?.changeDelay(-500); delay.text = player?.getDelayText() ?: "0.0s" }
         plus.setOnClickListener { player?.changeDelay(500); delay.text = player?.getDelayText() ?: "0.0s" }
         sync.setOnClickListener { player?.forceSync(); toast("تمت محاولة المزامنة") }
-        audio.setOnClickListener { pickChannel("مصدر الصوت الجديد", audioChannels) { selectedAudio = it; if (player?.switchAudio(it.streamUrls) == true) toast("تم تبديل الصوت") } }
+        audio.setOnClickListener { pickChannel("مصدر الصوت الجديد", audioChannels) { selectedAudio = it; if (player?.switchAudio(it.streamUrls) == true) toast("تم تبديل الصوت") else toast("تعذر تبديل الصوت") } }
+        removeAudio.setOnClickListener { if (player?.removeAudio() == true) toast("تمت إزالة الصوت مع استمرار الفيديو") }
+        reconnectAudio.setOnClickListener { if (player?.reconnectAudio() == true) toast("تمت إعادة اتصال الصوت") else toast("تعذر إعادة اتصال الصوت") }
         back.setOnClickListener { player?.release(); player = null; showChannels() }
         mix.setOnClickListener { showAudioPicker() }
         setContentView(root)
