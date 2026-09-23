@@ -56,8 +56,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showLogin() {
-        root = FrameLayout(this)
-        root.background = bg()
+        root = FrameLayout(this).apply { background = bg() }
         val scroll = ScrollView(this)
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -65,11 +64,8 @@ class MainActivity : AppCompatActivity() {
             setPadding(d(30), d(50), d(30), d(40))
         }
         scroll.addView(box)
-
         box.addView(title("AudioMix IPTV", 32f), lp(-1, 64, bottom = 22))
-        box.addView(label("Video Source + Audio Source مستقلان", 18f, true).apply { gravity = Gravity.CENTER }, lp(-1, 40, bottom = 8))
-        box.addView(label("حساب Xtream للفيديو + حساب Xtream مستقل للصوت", 13f).apply { gravity = Gravity.CENTER }, lp(-1, 40, bottom = 20))
-
+        box.addView(label("مصدر فيديو مستقل + مصدر صوت مستقل", 18f, true).apply { gravity = Gravity.CENTER }, lp(-1, 40, bottom = 20))
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(d(22), d(22), d(22), d(22))
@@ -84,20 +80,20 @@ class MainActivity : AppCompatActivity() {
         audioUsername = input("Audio Username")
         audioPassword = input("Audio Password").apply { inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD }
 
-        server.setText(prefs.getString("video_server", prefs.getString("server", "")) ?: "")
-        username.setText(prefs.getString("video_username", prefs.getString("username", "")) ?: "")
-        password.setText(prefs.getString("video_password", prefs.getString("password", "")) ?: "")
+        server.setText(prefs.getString("video_server", "") ?: "")
+        username.setText(prefs.getString("video_username", "") ?: "")
+        password.setText(prefs.getString("video_password", "") ?: "")
         audioServer.setText(prefs.getString("audio_server", "") ?: "")
         audioUsername.setText(prefs.getString("audio_username", "") ?: "")
         audioPassword.setText(prefs.getString("audio_password", "") ?: "")
 
-        card.addView(label("Video Account", 16f, true), lp(-1, 30, top = 2))
+        card.addView(label("Video Source", 16f, true), lp(-1, 30))
         card.addView(server, fieldLp()); card.addView(username, fieldLp()); card.addView(password, fieldLp())
-        card.addView(label("Audio Account", 16f, true), lp(-1, 30, top = 8))
+        card.addView(label("Audio Source", 16f, true), lp(-1, 30, top = 12))
         card.addView(audioServer, fieldLp()); card.addView(audioUsername, fieldLp()); card.addView(audioPassword, fieldLp())
 
-        val connect = Button(this).apply { text = "اتصال وتحميل مصدري الفيديو والصوت"; style(this, true) }
-        card.addView(connect, lp(-1, 56, top = 4))
+        val connect = Button(this).apply { text = "تحميل مصدري الفيديو والصوت"; style(this, true) }
+        card.addView(connect, lp(-1, 56, top = 12))
         connect.setOnClickListener {
             val vs = server.text.toString().trim().removeSuffix("/")
             val vu = username.text.toString().trim()
@@ -106,52 +102,37 @@ class MainActivity : AppCompatActivity() {
             val au = audioUsername.text.toString().trim()
             val ap = audioPassword.text.toString()
 
-            if (vs.isBlank() || vu.isBlank() || vp.isBlank() ||
-                asrv.isBlank() || au.isBlank() || ap.isBlank()) {
-                toast("أدخل بيانات حسابي Video وAudio كاملة")
+            if (listOf(vs, vu, vp, asrv, au, ap).any { it.isBlank() }) {
+                toast("أكمل بيانات حسابي Video وAudio")
                 return@setOnClickListener
             }
 
             connect.isEnabled = false
-            connect.text = "جاري تحميل Video + Audio..."
             executor.execute {
                 try {
-                    val videoResult = XtreamApi.loadLiveChannels(XtreamCredentials(vs, vu, vp))
-                    if (videoResult.isEmpty()) throw IllegalStateException("VIDEO_EMPTY")
-                    val audioResult = XtreamApi.loadLiveChannels(XtreamCredentials(asrv, au, ap))
-                    if (audioResult.isEmpty()) throw IllegalStateException("AUDIO_EMPTY")
-
+                    val vc = XtreamClient().liveChannels(XtreamConfig(vs, vu, vp))
+                    val ac = XtreamClient().liveChannels(XtreamConfig(asrv, au, ap))
+                    if (vc.isEmpty()) error("VIDEO_EMPTY")
+                    if (ac.isEmpty()) error("AUDIO_EMPTY")
                     runOnUiThread {
-                        connect.isEnabled = true
-                        connect.text = "اتصال وتحميل مصدري الفيديو والصوت"
-                        channels = videoResult
-                        audioChannels = audioResult
+                        channels = vc.map { Channel(it.id, it.name, listOf(it.streamUrl)) }
+                        audioChannels = ac.map { Channel(it.id, it.name, listOf(it.streamUrl)) }
                         prefs.edit()
-                            .putString("video_server", vs)
-                            .putString("video_username", vu)
-                            .putString("video_password", vp)
-                            .putString("audio_server", asrv)
-                            .putString("audio_username", au)
-                            .putString("audio_password", ap)
+                            .putString("video_server", vs).putString("video_username", vu).putString("video_password", vp)
+                            .putString("audio_server", asrv).putString("audio_username", au).putString("audio_password", ap)
                             .apply()
+                        connect.isEnabled = true
                         showChannels()
                     }
                 } catch (e: Exception) {
                     runOnUiThread {
                         connect.isEnabled = true
-                        connect.text = "اتصال وتحميل مصدري الفيديو والصوت"
-                        toast(
-                            when (e.message) {
-                                "VIDEO_EMPTY" -> "حساب الفيديو لم يُرجع قنوات مباشرة."
-                                "AUDIO_EMPTY" -> "حساب الصوت لم يُرجع قنوات مباشرة."
-                                else -> "فشل الاتصال بأحد حسابي Xtream: " + (e.message ?: "غير معروف")
-                            }
-                        )
+                        toast("فشل تحميل المصادر: " + (e.message ?: "غير معروف"))
                     }
                 }
             }
         }
-        root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+        root.addView(scroll)
         setContentView(root)
     }
 
