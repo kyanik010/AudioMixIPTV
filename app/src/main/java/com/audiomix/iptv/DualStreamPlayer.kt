@@ -41,6 +41,7 @@ class DualStreamPlayer(
     private var videoGeneration = 0L
     private var audioGeneration = 0L
     private var audioErrorShown = false
+    private var audioEnabled = true
     private var videoBufferingSince = 0L
     private var videoPreparedAtMs = 0L
     private var videoFirstFrameAtMs = 0L
@@ -496,9 +497,9 @@ class DualStreamPlayer(
         audioPlayer.volume = 1f
         audioNetworkYielding = false
         videoPlayer.playWhenReady = true
-        audioPlayer.playWhenReady = true
+        audioPlayer.playWhenReady = audioEnabled
         videoPlayer.play()
-        audioPlayer.play()
+        if (audioEnabled) audioPlayer.play()
         syncEngine.start()
     }
 
@@ -535,12 +536,31 @@ class DualStreamPlayer(
         }
     }
 
+    fun removeAudio(): Boolean {
+        if (released) return false
+        audioEnabled = false
+        audioGeneration++
+        recovery.resetAllFor("audio")
+        audioPlayer.playWhenReady = false
+        audioPlayer.pause()
+        audioPlayer.volume = 0f
+        return true
+    }
+
+    fun reconnectAudio(): Boolean {
+        if (released || audioUrls.isEmpty()) return false
+        audioEnabled = true
+        audioErrorShown = false
+        return switchAudio(audioUrls)
+    }
+
     fun switchAudio(newAudioUrls: List<String>): Boolean {
         if (released) return false
         val urls = newAudioUrls.distinct().filter { it.isNotBlank() }
         if (urls.isEmpty()) return false
 
         audioUrls = urls
+        audioEnabled = true
         audioIndex = 0
         audioErrorShown = false
         val generation = ++audioGeneration
