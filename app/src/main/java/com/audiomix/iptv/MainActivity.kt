@@ -115,8 +115,8 @@ class MainActivity : AppCompatActivity() {
                     if (vc.isEmpty()) error("VIDEO_EMPTY")
                     if (ac.isEmpty()) error("AUDIO_EMPTY")
                     runOnUiThread {
-                        channels = vc.map { Channel(it.id, it.name, listOf(it.streamUrl)) }
-                        audioChannels = ac.map { Channel(it.id, it.name, listOf(it.streamUrl)) }
+                        channels = vc
+                        audioChannels = ac
                         prefs.edit()
                             .putString("video_server", vs).putString("video_username", vu).putString("video_password", vp)
                             .putString("audio_server", asrv).putString("audio_username", au).putString("audio_password", ap)
