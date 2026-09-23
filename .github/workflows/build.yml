@@ -26,3 +26,5 @@ jobs:
         with:
           name: AudioMix-IPTV-debug
           path: app/build/outputs/apk/debug/*.apk
+
+# verified dual-source build
