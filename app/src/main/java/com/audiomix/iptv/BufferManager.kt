@@ -36,7 +36,7 @@ class BufferManager(context: Context) {
     }
 
     fun profileDescription(): String =
-        "video=\${profile.videoMinMs}-\${profile.videoMaxMs}ms audio=\${profile.audioMinMs}-\${profile.audioMaxMs}ms"
+        "video=${profile.videoMinMs}-${profile.videoMaxMs}ms audio=${profile.audioMinMs}-${profile.audioMaxMs}ms"
 
     private fun chooseProfile(context: Context): Profile {
         val memoryClassMb = context.getSystemService(ActivityManager::class.java)?.memoryClass ?: 256
