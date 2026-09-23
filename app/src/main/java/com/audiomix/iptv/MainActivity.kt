@@ -225,7 +225,7 @@ class MainActivity : AppCompatActivity() {
         val audio = Button(this).apply { text = if (selectedAudio == null) "اختيار Audio Source" else "Audio: ${selectedAudio!!.name}"; style(this) }
         val start = Button(this).apply { text = "تشغيل"; style(this, true) }
         box.addView(audio, lp(-1, 54, top = 10)); box.addView(start, lp(-1, 54, top = 10))
-        audio.setOnClickListener { pickChannel("اختر مصدر الصوت") { selectedAudio = it; audio.text = "Audio: ${it.name}" } }
+        audio.setOnClickListener { pickChannel("اختر مصدر الصوت", audioChannels) { selectedAudio = it; audio.text = "Audio: ${it.name}" } }
         start.setOnClickListener { if (selectedAudio == null) toast("اختر مصدر الصوت أولًا") else { dialog.dismiss(); startPlayback() } }
         dialog.setContentView(box); dialog.show(); dialog.window?.setLayout((resources.displayMetrics.widthPixels * .9).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
     }
