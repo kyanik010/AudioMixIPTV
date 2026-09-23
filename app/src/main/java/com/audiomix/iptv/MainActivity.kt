@@ -186,7 +186,7 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { refresh() }
             override fun afterTextChanged(s: Editable?) = Unit
         })
-        video.setOnClickListener { pickChannel("اختر قناة الفيديو") { selectedVideo = it; selected.text = selectionText() } }
+        video.setOnClickListener { pickChannel("اختر قناة الفيديو", channels) { selectedVideo = it; selected.text = selectionText() } }
         audio.setOnClickListener { pickChannel("اختر قناة الصوت", audioChannels) { selectedAudio = it; selected.text = selectionText() } }
         play.setOnClickListener { startPlayback() }
         settings.setOnClickListener { settingsDialog() }
