@@ -30,9 +30,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var server: EditText
     private lateinit var username: EditText
     private lateinit var password: EditText
+    private lateinit var audioServer: EditText
+    private lateinit var audioUsername: EditText
+    private lateinit var audioPassword: EditText
     private val executor = Executors.newSingleThreadExecutor()
     private val prefs by lazy { getSharedPreferences("audiomix", Context.MODE_PRIVATE) }
     private var channels: List<Channel> = emptyList()
+    private var audioChannels: List<Channel> = emptyList()
     private var selectedVideo: Channel? = null
     private var selectedAudio: Channel? = null
     private var player: DualStreamPlayer? = null
@@ -63,8 +67,8 @@ class MainActivity : AppCompatActivity() {
         scroll.addView(box)
 
         box.addView(title("AudioMix IPTV", 32f), lp(-1, 64, bottom = 22))
-        box.addView(label("Video Source + Audio Source", 18f, true).apply { gravity = Gravity.CENTER }, lp(-1, 40, bottom = 8))
-        box.addView(label("اشتراك Xtream واحد • جودة الفيديو الأصلية للبث", 13f).apply { gravity = Gravity.CENTER }, lp(-1, 40, bottom = 20))
+        box.addView(label("Video Source + Audio Source مستقلان", 18f, true).apply { gravity = Gravity.CENTER }, lp(-1, 40, bottom = 8))
+        box.addView(label("حساب Xtream للفيديو + حساب Xtream مستقل للصوت", 13f).apply { gravity = Gravity.CENTER }, lp(-1, 40, bottom = 20))
 
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -73,50 +77,80 @@ class MainActivity : AppCompatActivity() {
         }
         box.addView(card, lp(-1, -2))
 
-        server = input("Server URL")
-        username = input("Username")
-        password = input("Password").apply { inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD }
-        server.setText(prefs.getString("server", "") ?: "")
-        username.setText(prefs.getString("username", "") ?: "")
-        password.setText(prefs.getString("password", "") ?: "")
-        card.addView(server, fieldLp()); card.addView(username, fieldLp()); card.addView(password, fieldLp())
+        server = input("Video Server URL")
+        username = input("Video Username")
+        password = input("Video Password").apply { inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD }
+        audioServer = input("Audio Server URL")
+        audioUsername = input("Audio Username")
+        audioPassword = input("Audio Password").apply { inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD }
 
-        val connect = Button(this).apply { text = "اتصال وفتح القنوات"; style(this, true) }
+        server.setText(prefs.getString("video_server", prefs.getString("server", "")) ?: "")
+        username.setText(prefs.getString("video_username", prefs.getString("username", "")) ?: "")
+        password.setText(prefs.getString("video_password", prefs.getString("password", "")) ?: "")
+        audioServer.setText(prefs.getString("audio_server", "") ?: "")
+        audioUsername.setText(prefs.getString("audio_username", "") ?: "")
+        audioPassword.setText(prefs.getString("audio_password", "") ?: "")
+
+        card.addView(label("Video Account", 16f, true), lp(-1, 30, top = 2))
+        card.addView(server, fieldLp()); card.addView(username, fieldLp()); card.addView(password, fieldLp())
+        card.addView(label("Audio Account", 16f, true), lp(-1, 30, top = 8))
+        card.addView(audioServer, fieldLp()); card.addView(audioUsername, fieldLp()); card.addView(audioPassword, fieldLp())
+
+        val connect = Button(this).apply { text = "اتصال وتحميل مصدري الفيديو والصوت"; style(this, true) }
         card.addView(connect, lp(-1, 56, top = 4))
         connect.setOnClickListener {
-            val s = server.text.toString().trim().removeSuffix("/")
-            val u = username.text.toString().trim()
-            val p = password.text.toString()
-            if (s.isBlank() || u.isBlank() || p.isBlank()) {
-                toast("أدخل بيانات Xtream كاملة")
+            val vs = server.text.toString().trim().removeSuffix("/")
+            val vu = username.text.toString().trim()
+            val vp = password.text.toString()
+            val asrv = audioServer.text.toString().trim().removeSuffix("/")
+            val au = audioUsername.text.toString().trim()
+            val ap = audioPassword.text.toString()
+
+            if (vs.isBlank() || vu.isBlank() || vp.isBlank() ||
+                asrv.isBlank() || au.isBlank() || ap.isBlank()) {
+                toast("أدخل بيانات حسابي Video وAudio كاملة")
                 return@setOnClickListener
             }
+
             connect.isEnabled = false
-            connect.text = "جاري تحميل القنوات..."
+            connect.text = "جاري تحميل Video + Audio..."
             executor.execute {
                 try {
-                    val creds = XtreamCredentials(s, u, p)
-                    val result = XtreamApi.loadLiveChannels(creds)
+                    val videoResult = XtreamApi.loadLiveChannels(XtreamCredentials(vs, vu, vp))
+                    if (videoResult.isEmpty()) throw IllegalStateException("VIDEO_EMPTY")
+                    val audioResult = XtreamApi.loadLiveChannels(XtreamCredentials(asrv, au, ap))
+                    if (audioResult.isEmpty()) throw IllegalStateException("AUDIO_EMPTY")
+
                     runOnUiThread {
                         connect.isEnabled = true
-                        connect.text = "اتصال وفتح القنوات"
-                        if (result.isEmpty()) toast("لم يتم العثور على قنوات. تحقق من بيانات الاشتراك.")
-                        else {
-                            channels = result
-                            prefs.edit().putString("server", s).putString("username", u).putString("password", p).apply()
-                            showChannels()
-                        }
+                        connect.text = "اتصال وتحميل مصدري الفيديو والصوت"
+                        channels = videoResult
+                        audioChannels = audioResult
+                        prefs.edit()
+                            .putString("video_server", vs)
+                            .putString("video_username", vu)
+                            .putString("video_password", vp)
+                            .putString("audio_server", asrv)
+                            .putString("audio_username", au)
+                            .putString("audio_password", ap)
+                            .apply()
+                        showChannels()
                     }
                 } catch (e: Exception) {
                     runOnUiThread {
                         connect.isEnabled = true
-                        connect.text = "اتصال وفتح القنوات"
-                        toast("خطأ في الاتصال: ${e.message ?: "غير معروف"}")
+                        connect.text = "اتصال وتحميل مصدري الفيديو والصوت"
+                        toast(
+                            when (e.message) {
+                                "VIDEO_EMPTY" -> "حساب الفيديو لم يُرجع قنوات مباشرة."
+                                "AUDIO_EMPTY" -> "حساب الصوت لم يُرجع قنوات مباشرة."
+                                else -> "فشل الاتصال بأحد حسابي Xtream: " + (e.message ?: "غير معروف")
+                            }
+                        )
                     }
                 }
             }
         }
-
         root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
         setContentView(root)
     }
@@ -172,7 +206,7 @@ class MainActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) = Unit
         })
         video.setOnClickListener { pickChannel("اختر قناة الفيديو") { selectedVideo = it; selected.text = selectionText() } }
-        audio.setOnClickListener { pickChannel("اختر قناة الصوت") { selectedAudio = it; selected.text = selectionText() } }
+        audio.setOnClickListener { pickChannel("اختر قناة الصوت", audioChannels) { selectedAudio = it; selected.text = selectionText() } }
         play.setOnClickListener { startPlayback() }
         settings.setOnClickListener { settingsDialog() }
 
@@ -196,14 +230,14 @@ class MainActivity : AppCompatActivity() {
         dialog.setContentView(box); dialog.show(); dialog.window?.setLayout((resources.displayMetrics.widthPixels * .9).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
     }
 
-    private fun pickChannel(titleText: String, onPick: (Channel) -> Unit) {
+    private fun pickChannel(titleText: String, source: List<Channel> = channels, onPick: (Channel) -> Unit) {
         val dialog = Dialog(this)
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(d(20), d(20), d(20), d(20)); background = rounded(Color.rgb(16, 19, 25), 22f) }
         box.addView(title(titleText, 21f))
         val search = input("بحث..."); box.addView(search, lp(-1, 52, top = 10))
         val list = ListView(this); box.addView(list, lp(-1, 480, top = 8))
         fun refresh() {
-            val q = search.text.toString().trim(); val rows = if (q.isBlank()) channels else channels.filter { it.name.contains(q, true) }
+            val q = search.text.toString().trim(); val rows = if (q.isBlank()) source else source.filter { it.name.contains(q, true) }
             list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, rows.take(1200).map { it.name })
             list.setOnItemClickListener { _, _, pos, _ -> onPick(rows[pos]); dialog.dismiss() }
         }
@@ -243,7 +277,7 @@ class MainActivity : AppCompatActivity() {
         minus.setOnClickListener { player?.changeDelay(-500); delay.text = player?.getDelayText() ?: "0.0s" }
         plus.setOnClickListener { player?.changeDelay(500); delay.text = player?.getDelayText() ?: "0.0s" }
         sync.setOnClickListener { player?.forceSync(); toast("تمت محاولة المزامنة") }
-        audio.setOnClickListener { pickChannel("مصدر الصوت الجديد") { selectedAudio = it; if (player?.switchAudio(it.streamUrls) == true) toast("تم تبديل الصوت") } }
+        audio.setOnClickListener { pickChannel("مصدر الصوت الجديد", audioChannels) { selectedAudio = it; if (player?.switchAudio(it.streamUrls) == true) toast("تم تبديل الصوت") } }
         back.setOnClickListener { player?.release(); player = null; showChannels() }
         mix.setOnClickListener { showAudioPicker() }
         setContentView(root)
