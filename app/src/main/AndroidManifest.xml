@@ -1,15 +1,70 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
     <application
         android:theme="@style/Theme.AudioMix"
-        android:label="AudioMix IPTV"
+        android:label="StreamVault Audio Source"
         android:allowBackup="false"
         android:supportsRtl="true">
-        <activity android:name=".MainActivity" android:exported="true">
+
+        <activity
+            android:name=".streamvault.StreamVaultAudioConfigActivity"
+            android:exported="true"
+            android:label="StreamVault Audio Source">
+            <intent-filter>
+                <action android:name="com.audiomix.streamvault.audio.CONFIGURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".streamvault.StreamVaultAudioPluginService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="com.streamvault.plugin.API" />
+            </intent-filter>
+
+            <meta-data
+                android:name="com.streamvault.plugin.ID"
+                android:value="com.audiomix.streamvault.audio" />
+            <meta-data
+                android:name="com.streamvault.plugin.NAME"
+                android:value="StreamVault Audio Source" />
+            <meta-data
+                android:name="com.streamvault.plugin.VERSION_NAME"
+                android:value="1.0.0" />
+            <meta-data
+                android:name="com.streamvault.plugin.VERSION_CODE"
+                android:value="1" />
+            <meta-data
+                android:name="com.streamvault.plugin.DESCRIPTION"
+                android:value="External audio source companion for StreamVault." />
+            <meta-data
+                android:name="com.streamvault.plugin.CONFIGURATION_MODE"
+                android:value="activity" />
+            <meta-data
+                android:name="com.streamvault.plugin.CONFIGURATION_ACTIVITY_ACTION"
+                android:value="com.audiomix.streamvault.audio.CONFIGURE" />
+            <meta-data
+                android:name="com.streamvault.plugin.CAPABILITIES"
+                android:value="playback.prepare,configuration.activity" />
+            <meta-data
+                android:name="com.streamvault.plugin.MANIFEST_JSON"
+                android:value='{"schemaVersion":1,"id":"com.audiomix.streamvault.audio","name":"StreamVault Audio Source","versionName":"1.0.0","versionCode":1,"description":"External audio source companion for StreamVault.","providerName":"AudioMix IPTV","configurationMode":"activity","configurationActivityAction":"com.audiomix.streamvault.audio.CONFIGURE","capabilities":["playback.prepare","configuration.activity"],"playbackUrlSchemes":["http","https"],"playbackUrlHosts":["*"]}' />
+        </service>
+
     </application>
 </manifest>
