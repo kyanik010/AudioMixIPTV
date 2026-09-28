@@ -95,7 +95,7 @@ class StreamVaultAudioPluginService : Service() {
         super.onDestroy()
     }
 
-    private fun handleMessage(msg: Message) {
+    private fun handlePluginMessage(msg: Message) {
         when (msg.what) {
             MSG_GET_MANIFEST -> reply(msg, Bundle().apply {
                 putString(KEY_MANIFEST_JSON, manifestJson)
@@ -312,7 +312,7 @@ class StreamVaultAudioPluginService : Service() {
 
     private inner class IncomingHandler : android.os.Handler(Looper.getMainLooper()) {
         override fun handleMessage(msg: Message) {
-            handleMessage(msg)
+            handlePluginMessage(msg)
         }
     }
 }
