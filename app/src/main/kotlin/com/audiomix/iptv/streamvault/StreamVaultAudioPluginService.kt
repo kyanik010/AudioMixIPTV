@@ -257,31 +257,38 @@ class StreamVaultAudioPluginService : Service() {
             .put("offsetMs", prefs.getInt("offset_ms", 0))
             .put("enabled", enabled)
 
-    private fun configurationSchema(): String =
-        JSONObject()
-            .put("schemaVersion", 1)
-            .put("title", "StreamVault Audio Source")
-            .put("description", "Select the external audio stream and its startup offset.")
-            .put("sections", org.json.JSONArray().put(
-                JSONObject()
-                    .put("id", "audio")
-                    .put("title", "Audio Source")
-                    .put("fields", org.json.JSONArray()
-                        .put(JSONObject()
-                            .put("key", "audioUrl")
-                            .put("type", "url")
-                            .put("label", "Audio stream URL")
-                            .put("required", true))
-                        .put(JSONObject()
-                            .put("key", "offsetMs")
-                            .put("type", "number")
-                            .put("label", "Audio startup offset (ms)")
-                            .put("description", "Positive delays audio. Negative starts audio from later in the stream."))
-                        .put(JSONObject()
-                            .put("key", "enabled")
-                            .put("type", "boolean")
-                            .put("label", "Enable external audio"))))
-            .toString()
+    private fun configurationSchema(): String = """
+        {
+          "schemaVersion": 1,
+          "title": "StreamVault Audio Source",
+          "description": "Select the external audio stream and its startup offset.",
+          "sections": [
+            {
+              "id": "audio",
+              "title": "Audio Source",
+              "fields": [
+                {
+                  "key": "audioUrl",
+                  "type": "url",
+                  "label": "Audio stream URL",
+                  "required": true
+                },
+                {
+                  "key": "offsetMs",
+                  "type": "number",
+                  "label": "Audio startup offset (ms)",
+                  "description": "Positive delays audio. Negative starts audio from later in the stream."
+                },
+                {
+                  "key": "enabled",
+                  "type": "boolean",
+                  "label": "Enable external audio"
+                }
+              ]
+            }
+          ]
+        }
+    """.trimIndent()
 
     private fun persistConfiguration(raw: String) {
         runCatching {
