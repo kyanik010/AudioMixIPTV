@@ -35,5 +35,5 @@ dependencies {
     implementation("androidx.media3:media3-session:1.11.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-    implementation("com.github.getlantern:lanternsdk-android:1.0.1")
+    implementation(name = "lanternsdk-android", ext = "aar")
 }
