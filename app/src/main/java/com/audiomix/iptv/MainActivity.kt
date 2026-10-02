@@ -6,6 +6,8 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.content.Intent
+import android.net.VpnService
 import android.text.InputType
 import android.text.TextWatcher
 import android.text.Editable
@@ -26,6 +28,7 @@ import java.util.concurrent.Executors
  * Video quality is never forced to 4K; Media3 uses the stream's native quality.
  */
 class MainActivity : AppCompatActivity() {
+    companion object { private const val VPN_REQUEST = 7201 }
     private lateinit var root: FrameLayout
     private lateinit var server: EditText
     private lateinit var username: EditText
@@ -46,6 +49,14 @@ class MainActivity : AppCompatActivity() {
         window.statusBarColor = Color.BLACK
         window.navigationBarColor = Color.BLACK
         showLogin()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == VPN_REQUEST && resultCode == RESULT_OK) {
+            FreeVpnService.start(this)
+            toast("جاري تشغيل VPN المجاني")
+        }
     }
 
     override fun onDestroy() {
@@ -94,6 +105,21 @@ class MainActivity : AppCompatActivity() {
 
         val connect = Button(this).apply { text = "تحميل مصدري الفيديو والصوت"; style(this, true) }
         card.addView(connect, lp(-1, 56, top = 12))
+
+        val freeVpn = Button(this).apply {
+            text = "تشغيل VPN مجاني"
+            style(this)
+        }
+        card.addView(freeVpn, lp(-1, 56, top = 10))
+        freeVpn.setOnClickListener {
+            val intent = VpnService.prepare(this)
+            if (intent != null) {
+                startActivityForResult(intent, VPN_REQUEST)
+            } else {
+                FreeVpnService.start(this)
+                toast("جاري تشغيل VPN المجاني")
+            }
+        }
         connect.setOnClickListener {
             val vs = server.text.toString().trim().removeSuffix("/")
             val vu = username.text.toString().trim()
