@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         player?.release()
         player = null
+        lantern.stop()
         executor.shutdownNow()
         super.onDestroy()
     }
@@ -275,7 +276,9 @@ class MainActivity : AppCompatActivity() {
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(d(22), d(22), d(22), d(22)); background = rounded(Color.rgb(16, 19, 25), 22f) }
         box.addView(title("الإعدادات", 22f))
         box.addView(label("جودة الفيديو تتبع المصدر الرسمي للبث. لا يتم إجبار أي قناة على 4K.", 13f).apply { setTextColor(Color.LTGRAY) }, lp(-1, -2, top = 14))
-        val clear = Button(this).apply { text = "مسح بيانات الاشتراك"; style(this) }; box.addView(clear, lp(-1, 52, top = 16))
+
+        val clear = Button(this).apply { text = "مسح بيانات الاشتراك"; style(this) }
+        box.addView(clear, lp(-1, 52, top = 10))
         clear.setOnClickListener { prefs.edit().clear().apply(); dialog.dismiss(); showLogin() }
         dialog.setContentView(box); dialog.show(); dialog.window?.setLayout((resources.displayMetrics.widthPixels * .88).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
     }
