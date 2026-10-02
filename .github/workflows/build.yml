@@ -28,3 +28,5 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
 
 # verified dual-source build
+
+# CI verification after AppCompat theme fix
