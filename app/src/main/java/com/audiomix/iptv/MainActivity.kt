@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     private var selectedVideo: Channel? = null
     private var selectedAudio: Channel? = null
     private var player: DualStreamPlayer? = null
+    private val lantern by lazy { LanternController(this) }
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -51,6 +52,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         player?.release()
         player = null
+        lantern.stop()
         executor.shutdownNow()
         super.onDestroy()
     }
@@ -275,7 +277,42 @@ class MainActivity : AppCompatActivity() {
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(d(22), d(22), d(22), d(22)); background = rounded(Color.rgb(16, 19, 25), 22f) }
         box.addView(title("الإعدادات", 22f))
         box.addView(label("جودة الفيديو تتبع المصدر الرسمي للبث. لا يتم إجبار أي قناة على 4K.", 13f).apply { setTextColor(Color.LTGRAY) }, lp(-1, -2, top = 14))
-        val clear = Button(this).apply { text = "مسح بيانات الاشتراك"; style(this) }; box.addView(clear, lp(-1, 52, top = 16))
+
+        val lanternButton = Button(this).apply {
+            text = if (lantern.isRunning()) "إيقاف Lantern" else "تشغيل Lantern (Proxy Lab)"
+            style(this)
+        }
+        box.addView(lanternButton, lp(-1, 52, top = 16))
+        lanternButton.setOnClickListener {
+            lanternButton.isEnabled = false
+            if (lantern.isRunning()) {
+                executor.execute {
+                    lantern.stop()
+                    runOnUiThread {
+                        lanternButton.text = "تشغيل Lantern (Proxy Lab)"
+                        lanternButton.isEnabled = true
+                        toast("تم إيقاف Lantern")
+                    }
+                }
+            } else {
+                executor.execute {
+                    val result = lantern.start()
+                    runOnUiThread {
+                        lanternButton.isEnabled = true
+                        if (result != null) {
+                            lanternButton.text = "إيقاف Lantern"
+                            toast("Lantern يعمل على المنفذ ${result.port}")
+                        } else {
+                            lanternButton.text = "تشغيل Lantern (Proxy Lab)"
+                            toast("تعذر تشغيل Lantern")
+                        }
+                    }
+                }
+            }
+        }
+
+        val clear = Button(this).apply { text = "مسح بيانات الاشتراك"; style(this) }
+        box.addView(clear, lp(-1, 52, top = 10))
         clear.setOnClickListener { prefs.edit().clear().apply(); dialog.dismiss(); showLogin() }
         dialog.setContentView(box); dialog.show(); dialog.window?.setLayout((resources.displayMetrics.widthPixels * .88).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
     }
