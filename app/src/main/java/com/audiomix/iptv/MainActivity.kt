@@ -22,7 +22,7 @@ import java.util.concurrent.Executors
 
 /**
  * AudioMix IPTV main UI.
- * Two independent Xtream accounts supply separate video and audio channel lists.
+ * One Xtream subscription supplies the video catalog and the external-audio catalog.
  * Video quality is never forced to 4K; Media3 uses the stream's native quality.
  */
 class MainActivity : AppCompatActivity() {
@@ -65,7 +65,7 @@ class MainActivity : AppCompatActivity() {
         }
         scroll.addView(box)
         box.addView(title("AudioMix IPTV", 32f), lp(-1, 64, bottom = 22))
-        box.addView(label("مصدر فيديو مستقل + مصدر صوت مستقل", 18f, true).apply { gravity = Gravity.CENTER }, lp(-1, 40, bottom = 20))
+        box.addView(label("اشتراك Xtream واحد للفيديو والصوت الخارجي", 18f, true).apply { gravity = Gravity.CENTER }, lp(-1, 40, bottom = 20))
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(d(22), d(22), d(22), d(22))
@@ -76,35 +76,7 @@ class MainActivity : AppCompatActivity() {
         server = input("Video Server URL")
         username = input("Video Username")
         password = input("Video Password").apply { inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD }
-        audioServer = input("Audio Server URL")
-        audioUsername = input("Audio Username")
-        audioPassword = input("Audio Password").apply { inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD }
-
-        server.setText(prefs.getString("video_server", "") ?: "")
-        username.setText(prefs.getString("video_username", "") ?: "")
-        password.setText(prefs.getString("video_password", "") ?: "")
-        audioServer.setText(prefs.getString("audio_server", "") ?: "")
-        audioUsername.setText(prefs.getString("audio_username", "") ?: "")
-        audioPassword.setText(prefs.getString("audio_password", "") ?: "")
-
-        card.addView(label("Video Source", 16f, true), lp(-1, 30))
-        card.addView(server, fieldLp()); card.addView(username, fieldLp()); card.addView(password, fieldLp())
-        card.addView(label("Audio Source", 16f, true), lp(-1, 30, top = 12))
-        card.addView(audioServer, fieldLp()); card.addView(audioUsername, fieldLp()); card.addView(audioPassword, fieldLp())
-
-        val connect = Button(this).apply { text = "تحميل مصدري الفيديو والصوت"; style(this, true) }
-        card.addView(connect, lp(-1, 56, top = 12))
-        connect.setOnClickListener {
-            val vs = server.text.toString().trim().removeSuffix("/")
-            val vu = username.text.toString().trim()
-            val vp = password.text.toString()
-            val asrv = audioServer.text.toString().trim().removeSuffix("/")
-            val au = audioUsername.text.toString().trim()
-            val ap = audioPassword.text.toString()
-
-            if (listOf(vs, vu, vp, asrv, au, ap).any { it.isBlank() }) {
-                toast("أكمل بيانات حسابي Video وAudio")
-                return@setOnClickListener
+        server.setText(prefs.getString("video_server", "") ?: ""),        username.setText(prefs.getString("video_username", "") ?: ""),        password.setText(prefs.getString("video_password", "") ?: ""),,        card.addView(label("Xtream Subscription", 16f, true), lp(-1, 30)),        card.addView(server, fieldLp()); card.addView(username, fieldLp()); card.addView(password, fieldLp()),,        val connect = Button(this).apply { text = "تحميل القنوات"; style(this, true) },        card.addView(connect, lp(-1, 56, top = 12)),        connect.setOnClickListener {,            val vs = server.text.toString().trim().removeSuffix("/"),            val vu = username.text.toString().trim(),            val vp = password.text.toString(),,            if (listOf(vs, vu, vp).any { it.isBlank() }) {,                toast("أكمل بيانات اشتراك Xtream"),                return@setOnClickListener,            },,            connect.isEnabled = false,            executor.execute {,                try {,                    val loaded = XtreamApi.loadLiveChannels(XtreamCredentials(vs, vu, vp)),                    if (loaded.isEmpty()) error("CHANNELS_EMPTY"),                    runOnUiThread {,                        channels = loaded,                        audioChannels = loaded,                        prefs.edit(),                            .putString("video_server", vs),                            .putString("video_username", vu),                            .putString("video_password", vp),                            .apply(),                        connect.isEnabled = true,                        showChannels(),                    },                } catch (e: Exception) {,                    runOnUiThread {,                        connect.isEnabled = true,                        toast("فشل تحميل القنوات: " + (e.message ?: "غير معروف")),                    },                },            },        }
             }
 
             connect.isEnabled = false
@@ -159,14 +131,14 @@ class MainActivity : AppCompatActivity() {
 
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val video = Button(this).apply { text = "اختيار الفيديو"; style(this, true) }
-        val audio = Button(this).apply { text = "اختيار الصوت"; style(this) }
+        val audio = Button(this).apply { text = "اختيار الصوت الخارجي"; style(this) }
         actions.addView(video, lp(0, 52, weight = 1f))
         actions.addView(audio, lp(0, 52, weight = 1f, left = 8))
         main.addView(actions, lp(-1, 52, top = 10))
 
-        val play = Button(this).apply { text = "▶ تشغيل Video + Audio"; style(this, true) }
+        val play = Button(this).apply { text = "▶ تشغيل Video + External Audio"; style(this, true) }
         main.addView(play, lp(-1, 56, top = 10))
-        main.addView(label("${channels.size} قناة • جودة الفيديو لا تُجبر على 4K", 12f), lp(-1, 24, top = 8))
+        main.addView(label("${channels.size} قناة • الصوت الخارجي من نفس الاشتراك", 12f), lp(-1, 24, top = 8))
 
         val list = ListView(this)
         main.addView(list, lp(-1, 0, weight = 1f, top = 8))
@@ -201,13 +173,13 @@ class MainActivity : AppCompatActivity() {
         val video = selectedVideo ?: return
         val dialog = Dialog(this)
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(d(22), d(22), d(22), d(22)); background = rounded(Color.rgb(16, 19, 25), 22f) }
-        box.addView(title("AudioMix", 24f))
+        box.addView(title("External Audio", 24f))
         box.addView(label("Video Source\n${video.name}", 15f, true).apply { setPadding(d(14), d(14), d(14), d(14)) }, lp(-1, -2, top = 14))
-        val audio = Button(this).apply { text = if (selectedAudio == null) "اختيار Audio Source" else "Audio: ${selectedAudio!!.name}"; style(this) }
+        val audio = Button(this).apply { text = if (selectedAudio == null) "اختيار قناة الصوت الخارجي" else "Audio: ${selectedAudio!!.name}"; style(this) }
         val start = Button(this).apply { text = "تشغيل"; style(this, true) }
         box.addView(audio, lp(-1, 54, top = 10)); box.addView(start, lp(-1, 54, top = 10))
-        audio.setOnClickListener { pickChannel("اختر مصدر الصوت", audioChannels) { selectedAudio = it; audio.text = "Audio: ${it.name}" } }
-        start.setOnClickListener { if (selectedAudio == null) toast("اختر مصدر الصوت أولًا") else { dialog.dismiss(); startPlayback() } }
+        audio.setOnClickListener { pickChannel("اختر قناة الصوت الخارجي", audioChannels) { selectedAudio = it; audio.text = "Audio: ${it.name}" } }
+        start.setOnClickListener { if (selectedAudio == null) toast("اختر قناة الصوت الخارجي أولًا") else { dialog.dismiss(); startPlayback() } }
         dialog.setContentView(box); dialog.show(); dialog.window?.setLayout((resources.displayMetrics.widthPixels * .9).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
     }
 
@@ -244,7 +216,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(view, FrameLayout.LayoutParams(-1, -1))
         val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(d(10), d(8), d(10), d(8)); setBackgroundColor(Color.argb(180, 0, 0, 0)) }
         bar.addView(title("AudioMix IPTV", 18f), lp(0, 50, weight = 1f))
-        val mix = Button(this).apply { text = "AudioMix"; style(this, true) }; bar.addView(mix, lp(105, 46))
+        val mix = Button(this).apply { text = "External Audio"; style(this, true) }; bar.addView(mix, lp(135, 46))
         root.addView(bar, FrameLayout.LayoutParams(-1, 66).apply { gravity = Gravity.TOP })
         val bottom = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(d(6), d(6), d(6), d(8)); setBackgroundColor(Color.argb(190, 0, 0, 0)) }
         val minus = Button(this).apply { text = "-0.5s"; style(this) }
@@ -260,7 +232,7 @@ class MainActivity : AppCompatActivity() {
         minus.setOnClickListener { player?.changeDelay(-500); delay.text = player?.getDelayText() ?: "0.0s" }
         plus.setOnClickListener { player?.changeDelay(500); delay.text = player?.getDelayText() ?: "0.0s" }
         sync.setOnClickListener { player?.forceSync(); toast("تمت محاولة المزامنة") }
-        audio.setOnClickListener { pickChannel("مصدر الصوت الجديد", audioChannels) { selectedAudio = it; if (player?.switchAudio(it.streamUrls) == true) toast("تم تبديل الصوت") else toast("تعذر تبديل الصوت") } }
+        audio.setOnClickListener { pickChannel("مصدر الصوت الخارجي الجديد", audioChannels) { selectedAudio = it; if (player?.switchAudio(it.streamUrls) == true) toast("تم تبديل الصوت الخارجي") else toast("تعذر تبديل الصوت الخارجي") } }
         removeAudio.setOnClickListener { if (player?.removeAudio() == true) toast("تمت إزالة الصوت مع استمرار الفيديو") }
         reconnectAudio.setOnClickListener { if (player?.reconnectAudio() == true) toast("تمت إعادة اتصال الصوت") else toast("تعذر إعادة اتصال الصوت") }
         back.setOnClickListener { player?.release(); player = null; showChannels() }
@@ -274,7 +246,7 @@ class MainActivity : AppCompatActivity() {
         val dialog = Dialog(this)
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(d(22), d(22), d(22), d(22)); background = rounded(Color.rgb(16, 19, 25), 22f) }
         box.addView(title("الإعدادات", 22f))
-        box.addView(label("جودة الفيديو تتبع المصدر الرسمي للبث. لا يتم إجبار أي قناة على 4K.", 13f).apply { setTextColor(Color.LTGRAY) }, lp(-1, -2, top = 14))
+        box.addView(label("جودة الفيديو تتبع المصدر الرسمي للبث. الصوت الخارجي يستخدم نفس اشتراك Xtream.", 13f).apply { setTextColor(Color.LTGRAY) }, lp(-1, -2, top = 14))
         val clear = Button(this).apply { text = "مسح بيانات الاشتراك"; style(this) }; box.addView(clear, lp(-1, 52, top = 16))
         clear.setOnClickListener { prefs.edit().clear().apply(); dialog.dismiss(); showLogin() }
         dialog.setContentView(box); dialog.show(); dialog.window?.setLayout((resources.displayMetrics.widthPixels * .88).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
