@@ -39,7 +39,7 @@ jobs:
       - name: Install Lantern SDK AAR
         run: |
           mkdir -p app/libs
-          cp .lanternsdk/build/lanternsdk-android.aar app/libs/lanternsdk-android.aar
+          cp .lanternsdk/build/lanternsdk-android-dev.aar app/libs/lanternsdk-android.aar
 
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace
