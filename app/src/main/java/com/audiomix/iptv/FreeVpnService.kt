@@ -247,10 +247,10 @@ class FreeVpnService : VpnService(), PlatformInterface, CommandServerHandler {
                     index = ni.index
                     mtu = ni.mtu
                     type = when {
-                        ni.name.startsWith("wlan") -> io.nekohasekai.libbox.InterfaceTypeWIFI
-                        ni.name.startsWith("rmnet") || ni.name.startsWith("ccmni") -> io.nekohasekai.libbox.InterfaceTypeCellular
-                        ni.name.startsWith("eth") -> io.nekohasekai.libbox.InterfaceTypeEthernet
-                        else -> io.nekohasekai.libbox.InterfaceTypeOther
+                        ni.name.startsWith("wlan") -> 0
+                        ni.name.startsWith("rmnet") || ni.name.startsWith("ccmni") -> 1
+                        ni.name.startsWith("eth") -> 2
+                        else -> 3
                     }
                     addresses = StringList(ni.interfaceAddresses.mapNotNull(::toPrefix))
                     dnsServer = StringList(emptyList())
